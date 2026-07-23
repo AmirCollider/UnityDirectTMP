@@ -1,0 +1,19 @@
+{
+    "name": "AmirCollider.UnityDirectTMP.Editor",
+    "rootNamespace": "UnityDirectTMP.Editor",
+    "references": [
+        "AmirCollider.UnityDirectTMP",
+        "Unity.TextMeshPro"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

@@ -1,0 +1,51 @@
+{
+  "name": "com.amircollider.unitydirecttmp",
+  "version": "0.1.0",
+  "displayName": "Unity DirectTMP",
+  "description": "Hand TextMeshPro the font file itself — and every language just works.\n\nUnity DirectTMP is a small component that sits next to your TextMeshProUGUI / TextMeshPro and lets you assign the font file itself — a plain .ttf or .otf — instead of a pre-baked SDF font asset. Glyphs are rasterized straight from that file the moment they're first drawn, so every character the font actually contains is available immediately: Japanese, Chinese, Korean, Persian, Arabic, Thai, Cyrillic, symbols, all of it. No character sets to guess in advance, no atlases to rebuild, no tofu.\n\n• Point at a font file, not a font asset — drag a .ttf/.otf onto the component and you're done.\n• Every script the font supports, on demand — glyphs come from the file as they're used.\n• Ordered fallback chains — the first font that has the glyph wins, per character.\n• Load fonts at runtime — from StreamingAssets, persistentDataPath, a downloaded byte[], or the player's own installed fonts.\n• Runtime and Editor — works in Play Mode, in builds, and previews live in the Scene view.\n\nRequires TextMeshPro 3.0+. No other third-party dependencies.",
+  "unity": "2021.3",
+  "unityRelease": "0f1",
+  "documentationUrl": "https://github.com/AmirCollider/UnityDirectTMP#readme",
+  "changelogUrl": "https://github.com/AmirCollider/UnityDirectTMP/blob/main/CHANGELOG.md",
+  "licensesUrl": "https://github.com/AmirCollider/UnityDirectTMP/blob/main/LICENSE",
+  "type": "tool",
+  "hideInEditor": false,
+  "keywords": [
+    "text",
+    "textmeshpro",
+    "tmp",
+    "font",
+    "ttf",
+    "otf",
+    "sdf",
+    "dynamic-font",
+    "localization",
+    "i18n",
+    "cjk",
+    "rtl",
+    "unicode",
+    "fallback",
+    "runtime",
+    "utility"
+  ],
+  "dependencies": {},
+  "samples": [
+    {
+      "displayName": "Multilingual Demo",
+      "description": "One scene, one font, twelve languages — English, CJK, Persian, Arabic, Hebrew, Thai, Hindi and emoji, all from a single .ttf.",
+      "path": "Samples~/MultilingualDemo"
+    }
+  ],
+  "author": {
+    "name": "AmirCollider",
+    "url": "https://github.com/AmirCollider"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AmirCollider/UnityDirectTMP.git"
+  },
+  "bugs": {
+    "url": "https://github.com/AmirCollider/UnityDirectTMP/issues"
+  },
+  "license": "MIT"
+}
