@@ -264,7 +264,11 @@ namespace UnityDirectTMP.Editor
                     GUILayout.Width(EditorGUIUtility.labelWidth));
 
                 int index = DirectTMPText.IndexOf(DirectTMPText.Current);
-                int picked = EditorGUILayout.Popup(index, DirectTMPText.Labels, GUILayout.Width(140));
+
+                // Not EditorGUILayout.Popup: its button is IMGUI and its list
+                // is the operating system's, and Persian needs opposite
+                // treatment on either side of that line.
+                int picked = DirectTMPPopup.Field(index, DirectTMPText.Labels, EditorStyles.popup, GUILayout.Width(140));
                 if (picked != index)
                 {
                     DirectTMPText.Current = DirectTMPText.Codes[picked];

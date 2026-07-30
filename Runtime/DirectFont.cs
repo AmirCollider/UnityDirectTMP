@@ -53,6 +53,9 @@ namespace UnityDirectTMP
         [Tooltip("Build and apply the font automatically whenever this component is enabled.")]
         [SerializeField] private bool applyOnEnable = true;
 
+        [Tooltip("Also make Arabic-script text read: letters joined, right-to-left words in reading order. Adds a Direct Text component, which is where the setting for it lives.")]
+        [SerializeField] private bool shapeText = true;
+
         [Tooltip("Use custom rasterization settings for this label instead of the package defaults.")]
         [SerializeField] private bool overrideSettings = false;
 
@@ -173,6 +176,15 @@ namespace UnityDirectTMP
                 DirectTMPLog.Warn($"DirectFont needs a TextMeshPro component on the same GameObject.", this);
                 return;
             }
+
+            // Glyphs are half the answer. A font file with Persian in it stops
+            // the boxes; it does not join the letters up or put the words in
+            // reading order, because nothing in TextMeshPro does - so the
+            // label that was □□□ becomes a row of disconnected letters running
+            // backwards, which is a different kind of wrong, not a fixed one.
+            // Direct Text is the other half, and this is why a user who did
+            // the obvious thing gets it without having to know that.
+            if (shapeText) { DirectText.EnsureOn(gameObject); }
 
             TMP_FontAsset asset = BuildCurrent();
             if (asset == null) { return; }

@@ -134,7 +134,7 @@ namespace UnityDirectTMP.Editor
                     scriptLabels.Add(DirectTMPText.NativeShow(DirectFontScripts.NameFor(script, DirectTMPText.Current)));
                 }
 
-                int pickedScript = EditorGUILayout.Popup(_scriptFilter, scriptLabels.ToArray(), EditorStyles.toolbarPopup, GUILayout.Width(140));
+                int pickedScript = DirectTMPPopup.Field(_scriptFilter, scriptLabels.ToArray(), EditorStyles.toolbarPopup, GUILayout.Width(140));
                 if (pickedScript != _scriptFilter)
                 {
                     _scriptFilter = pickedScript;
@@ -150,7 +150,7 @@ namespace UnityDirectTMP.Editor
                     DirectTMPText.Native("Largest file", "ファイルサイズ", "بزرگ‌ترین فایل")
                 };
 
-                var pickedSort = (DirectCatalogSort)EditorGUILayout.Popup((int)_sort, sortLabels, EditorStyles.toolbarPopup, GUILayout.Width(120));
+                var pickedSort = (DirectCatalogSort)DirectTMPPopup.Field((int)_sort, sortLabels, EditorStyles.toolbarPopup, GUILayout.Width(120));
                 if (pickedSort != _sort)
                 {
                     _sort = pickedSort;

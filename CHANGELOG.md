@@ -14,11 +14,81 @@ roadmap in the [README](README.md#-roadmap).
 - `.ttc` / `.otc` collection support with a face-index picker. The catalog
   already reports the face count and flags that only face 0 is used.
 - Arabic-script shaping from the font's own OpenType `GSUB` tables, so a font
-  with contextual alternates or a full ligature set uses them. 1.0.1 shapes
-  via the Unicode presentation forms, which every Arabic-capable font carries
-  and which covers Persian, Arabic and Urdu correctly.
+  with contextual alternates or a full ligature set uses them. 1.1.0 shapes
+  via the Unicode presentation forms, and falls back to the plain letters for
+  a font that carries none.
 - Colour & emoji fonts (COLR / CBDT).
 - Variable font axes — weight, width, slant.
+
+## [1.1.0] - 2026-07-30
+
+The glyphs were there and the words were still wrong.
+
+1.0.1 taught this package's own Editor windows to draw Persian. It did not
+teach your labels to, and the bug report that followed is the one this
+release exists for: a `Text (TMP)` with a Direct Font on it and a real font
+file assigned. No more boxes — and Persian arriving as a row of disconnected
+letters running the wrong way.
+
+That is not a font problem, and adding a better font does not fix it.
+TextMeshPro hands each codepoint to the font in the order it is stored;
+`isRightToLeftText` reverses that order without joining anything. So a label
+could have every glyph it needs and still be unreadable, and the package
+answered "your font is missing characters" to a question nobody was asking.
+
+### Added
+- **`DirectText`** — the component that makes a TMP label read. Drop it next
+  to any `TextMeshProUGUI` / `TextMeshPro` and Persian, Arabic, Urdu and
+  Hebrew are joined, reordered and aligned. `label.text` still holds the
+  string you assigned, in logical order, because the work happens in
+  TextMeshPro's own `textPreprocessor` — which also means anything that writes
+  to a label is covered without knowing the component exists: a `TMP_Dropdown`
+  filling its caption, a localisation package, a coroutine typing one
+  character at a time.
+- **Wrapped paragraphs read top to bottom.** Reordered text cannot be wrapped:
+  reordering makes the LAST word of a paragraph the leftmost thing on the
+  line, so a renderer breaking that line into three produces three lines that
+  read upwards. `DirectText` lays the text out twice — once shaped and still
+  in reading order, so TextMeshPro reports where the lines fall, then once
+  more with each of those lines reordered on its own. Every wrapped
+  right-to-left label in Unity has this bug and it is invisible until a
+  sentence gets long enough to fold.
+- **`DirectRichText`** — shaping and reordering over text with markup in it.
+  `<b>` and `<color>` survive intact and move with the words they wrap, so the
+  opening tag lands at the left end of its span and the closing one at the
+  right, swapping over automatically when the span turns around. Letters join
+  ACROSS a tag, `<br>` is treated as the line break it is, and a `<` that is
+  not a tag is left alone.
+- **Fonts with no presentation forms are no longer boxes.** The forms are a
+  legacy Unicode block, and the faces a Persian designer actually reaches for
+  — Vazirmatn, Noto Sans Arabic — carry the plain letters plus OpenType rules
+  and nothing at U+FE70. Shaping into a form such a font has no glyph for
+  turns readable-if-unjoined text into tofu, so every form is now checked
+  against the font first and falls back to the isolated form, then to the
+  letter itself.
+- `DirectFont` gained **Shape Text** (on by default), which adds the
+  `DirectText` component for you — because "I added Direct Font and gave it a
+  font" is exactly the report above, and needing to know about a second
+  component was the package's failure, not the user's.
+- `DirectTMP.ShapeAll()` for an existing scene, and `DirectTMP.Prepare(text)`
+  for text you draw yourself.
+- Index maps on the two lower layers: `DirectArabicShaper.Shape` and
+  `DirectBidi.Reorder` can now report where every character came from and
+  went, which is what lets a tag be put back where it belongs.
+- `DirectRichTextTests` — 31 tests over markup, wrapping, the index maps and
+  the missing-form fallback.
+
+### Fixed
+- **The language dropdown showed Persian backwards on its button.** A popup is
+  two text systems, not one: the list that drops down is drawn by the
+  operating system, which shapes and reorders on its own, while the button
+  that opens it is IMGUI, which does neither. 1.0.0 prepared both, so the list
+  read backwards; 1.0.1 prepared neither, so the button did. `DirectTMPPopup`
+  now gives each half what it needs, and the Font Catalog's script and sort
+  filters use it too.
+- A `TMP_InputField`'s own text component is deliberately left alone —
+  reordering it would put the caret in the wrong place. Its placeholder is
+  shaped as normal.
 
 ## [1.0.1] - 2026-07-30
 
