@@ -170,7 +170,7 @@ namespace UnityDirectTMP
             TMP_Text tmp = Text;
             if (tmp == null)
             {
-                Debug.LogWarning($"[{DirectTMPConstants.ToolName}] DirectFont needs a TextMeshPro component on the same GameObject.", this);
+                DirectTMPLog.Warn($"DirectFont needs a TextMeshPro component on the same GameObject.", this);
                 return;
             }
 

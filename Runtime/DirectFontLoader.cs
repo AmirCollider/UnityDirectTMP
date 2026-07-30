@@ -46,7 +46,7 @@ namespace UnityDirectTMP
             string resolved = ResolveFilePath(path);
             if (resolved == null)
             {
-                Debug.LogWarning($"[{DirectTMPConstants.ToolName}] Could not locate font file: '{path}'.");
+                DirectTMPLog.Warn($"Could not locate font file: '{path}'.");
                 return null;
             }
 
@@ -76,7 +76,7 @@ namespace UnityDirectTMP
             Font osFont = Font.CreateDynamicFontFromOSFont(familyName, settings.SamplingPointSize);
             if (osFont == null)
             {
-                Debug.LogWarning($"[{DirectTMPConstants.ToolName}] No installed system font named '{familyName}'.");
+                DirectTMPLog.Warn($"No installed system font named '{familyName}'.");
                 return null;
             }
             return FromFont(osFont, settings);

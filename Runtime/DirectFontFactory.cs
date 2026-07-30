@@ -85,7 +85,7 @@ namespace UnityDirectTMP
         {
             if (string.IsNullOrEmpty(absolutePath) || !System.IO.File.Exists(absolutePath))
             {
-                Debug.LogWarning($"[{DirectTMPConstants.ToolName}] Font file not found: {absolutePath}");
+                DirectTMPLog.Warn($"Font file not found: {absolutePath}");
                 return null;
             }
 
@@ -115,7 +115,7 @@ namespace UnityDirectTMP
         {
             if (fontBytes == null || fontBytes.Length == 0)
             {
-                Debug.LogWarning($"[{DirectTMPConstants.ToolName}] Empty font byte buffer.");
+                DirectTMPLog.Warn($"Empty font byte buffer.");
                 return null;
             }
 
@@ -224,7 +224,7 @@ namespace UnityDirectTMP
             }
             catch (Exception e)
             {
-                Debug.LogWarning($"[{DirectTMPConstants.ToolName}] TMP font factory threw, falling back to FontEngine: {e.Message}");
+                DirectTMPLog.Warn($"TMP font factory threw, falling back to FontEngine: {e.Message}");
                 return null;
             }
         }
@@ -253,7 +253,7 @@ namespace UnityDirectTMP
                 EnsureEngine();
                 if (loadFace() != FontEngineError.Success)
                 {
-                    Debug.LogWarning($"[{DirectTMPConstants.ToolName}] FontEngine could not read a face from '{sourceName}'.");
+                    DirectTMPLog.Warn($"FontEngine could not read a face from '{sourceName}'.");
                     return null;
                 }
 
@@ -295,8 +295,8 @@ namespace UnityDirectTMP
             }
             catch (Exception e)
             {
-                Debug.LogWarning(
-                    $"[{DirectTMPConstants.ToolName}] Runtime font building from a raw file/buffer needs Unity 2022.2+ (TMP 3.2+) " +
+                DirectTMPLog.Warn(
+                    "Runtime font building from a raw file/buffer needs Unity 2022.2+ (TMP 3.2+) " +
                     $"on this editor. Reference the .ttf as a Font asset instead, or upgrade. ({e.Message})");
                 return null;
             }
@@ -322,7 +322,7 @@ namespace UnityDirectTMP
             }
             catch (Exception e)
             {
-                Debug.LogWarning($"[{DirectTMPConstants.ToolName}] Could not spool font bytes to the cache folder: {e.Message}");
+                DirectTMPLog.Warn($"Could not spool font bytes to the cache folder: {e.Message}");
                 return null;
             }
         }

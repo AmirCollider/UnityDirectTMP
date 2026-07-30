@@ -234,6 +234,79 @@ namespace UnityDirectTMP.Editor
             return true;
         }
 
+        // ==========================================
+        // ApplyFontToSelection
+        //
+        // The Font Catalog's one-click "use this on what
+        // I have selected". Different from ConvertSelected
+        // in the one way that matters: the conversion
+        // keeps whatever font each label already had and
+        // simply changes where its glyphs come from, while
+        // this REPLACES the font with a specific file
+        // somebody just picked out of a list.
+        //
+        // It is one undo step for the whole selection, so
+        // trying a font on forty labels and changing your
+        // mind is one Ctrl+Z rather than forty.
+        // ==========================================
+        public static int ApplyFontToSelection(Font font)
+        {
+            if (font == null) { return 0; }
+
+            var labels = new List<TMP_Text>();
+            foreach (GameObject go in Selection.gameObjects)
+            {
+                if (go != null) { labels.AddRange(go.GetComponentsInChildren<TMP_Text>(true)); }
+            }
+
+            int group = Undo.GetCurrentGroup();
+            Undo.SetCurrentGroupName($"Apply {font.name} with {DirectTMPConstants.ShortName}");
+
+            var seen = new HashSet<int>();
+            int applied = 0;
+
+            foreach (TMP_Text label in labels)
+            {
+                if (label == null || !seen.Add(label.GetInstanceID())) { continue; }
+
+                DirectFont directFont = label.GetComponent<DirectFont>();
+                if (directFont == null)
+                {
+                    directFont = Undo.AddComponent<DirectFont>(label.gameObject);
+                    directFont.EditorOverrideSettings = true;
+                    directFont.EditorSettings = DirectTMPSettings.CurrentSettings;
+                }
+                else
+                {
+                    Undo.RecordObject(directFont, "Change Direct Font");
+                }
+
+                directFont.EditorFontFile = font;
+                EditorUtility.SetDirty(directFont);
+                directFont.Refresh();
+                applied++;
+            }
+
+            Undo.CollapseUndoOperations(group);
+
+            if (applied == 0)
+            {
+                EditorUtility.DisplayDialog(
+                    DirectTMPConstants.ToolName,
+                    "Select one or more GameObjects with a TextMeshPro component first.\n\n" +
+                    "─────\n" +
+                    "先に TextMeshPro を持つ GameObject を選択してください。\n\n" +
+                    "─────\n" +
+                    "اول یک یا چند GameObject که TextMeshPro دارن رو انتخاب کن.",
+                    "OK");
+            }
+            else
+            {
+                DirectTMPLog.Info($"Applied '{font.name}' to {applied} TextMeshPro label(s).");
+            }
+            return applied;
+        }
+
         private static void Report(int count, string where)
         {
             if (count == 0)
@@ -245,7 +318,7 @@ namespace UnityDirectTMP.Editor
             }
             else
             {
-                Debug.Log($"[{DirectTMPConstants.ToolName}] Converted {count} TextMeshPro label(s) in {where}.");
+                DirectTMPLog.Info($"Converted {count} TextMeshPro label(s) in {where}.");
             }
         }
     }
