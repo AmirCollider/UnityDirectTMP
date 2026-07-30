@@ -70,6 +70,51 @@ namespace UnityDirectTMP
         }
 
         // ==========================================
+        // Text that reads.
+        //
+        // The font side of this package answers "the
+        // glyph is missing". These two answer "the glyph
+        // is there and the word is still wrong", which
+        // is every Arabic-script label TextMeshPro has
+        // ever drawn: unjoined letters in stored order.
+        // ==========================================
+
+        /// <summary>
+        /// Gives every TextMeshPro label currently loaded a
+        /// <see cref="DirectText"/>, so Persian, Arabic, Urdu and Hebrew read
+        /// correctly wherever they turn up - including the labels inside a
+        /// TMP_Dropdown. Returns how many labels were changed.
+        ///
+        /// Labels that already have one are left alone, so this is safe to
+        /// call after loading a scene, and safe to call twice.
+        /// </summary>
+        public static int ShapeAll()
+        {
+            TMP_Text[] labels = Object.FindObjectsOfType<TMP_Text>(true);
+
+            int added = 0;
+            foreach (TMP_Text label in labels)
+            {
+                if (label == null) { continue; }
+                if (label.GetComponent<DirectText>() != null) { continue; }
+                if (DirectText.EnsureOn(label.gameObject) != null) { added++; }
+            }
+            return added;
+        }
+
+        /// <summary>
+        /// One string, joined up and put in reading order, with any rich-text
+        /// tags kept around the words they wrap. For text you are drawing
+        /// yourself - into a Texture2D, an IMGUI label, a legacy UI.Text -
+        /// rather than through a TMP label with a <see cref="DirectText"/> on
+        /// it. Text with nothing right-to-left in it comes back unchanged.
+        /// </summary>
+        public static string Prepare(string text) => DirectRichText.Prepare(text);
+
+        /// <summary>The same, with the paragraph direction forced.</summary>
+        public static string Prepare(string text, int paragraphDirection) => DirectRichText.Prepare(text, paragraphDirection);
+
+        // ==========================================
         // Preload - rasterize glyphs ahead of time so the
         // first frame showing them doesn't pay the whole
         // per-glyph cost at once. Returns the characters

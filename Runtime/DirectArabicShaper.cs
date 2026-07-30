@@ -285,7 +285,39 @@ namespace UnityDirectTMP
         /// </summary>
         public static string Shape(string text)
         {
-            if (!NeedsShaping(text)) { return text; }
+            return Shape(text, null, null);
+        }
+
+        /// <summary>
+        /// The same shaping, with two things a renderer needs and a unit test
+        /// does not.
+        ///
+        /// <paramref name="hasGlyph"/> is asked, per form, whether the font
+        /// about to draw this text actually has that glyph. It matters more
+        /// than it sounds: the presentation forms are a legacy block, and a
+        /// modern face built for a real shaping engine - Vazirmatn, Noto Sans
+        /// Arabic, most of what a Persian designer will reach for - carries
+        /// the plain letters and its joining rules in OpenType, with nothing
+        /// at U+FE70. Shaping into a form such a font has no glyph for turns
+        /// readable-but-unjoined text into a row of boxes, which is a worse
+        /// answer than the one we started with. When the probe says no, the
+        /// letter falls back to its isolated form and then to itself.
+        ///
+        /// <paramref name="sourceIndices"/> is filled with the index in
+        /// <paramref name="text"/> that each output character came from, so a
+        /// caller that has to put something back where it was - a rich-text
+        /// tag, a caret - can follow the letters through a pass that removes
+        /// ZWNJ and turns lam+alef into one glyph.
+        /// </summary>
+        public static string Shape(string text, System.Func<char, bool> hasGlyph, List<int> sourceIndices)
+        {
+            if (sourceIndices != null) { sourceIndices.Clear(); }
+
+            if (!NeedsShaping(text))
+            {
+                FillIdentity(sourceIndices, text);
+                return text;
+            }
 
             var output = new StringBuilder(text.Length);
 
@@ -301,8 +333,11 @@ namespace UnityDirectTMP
                 if (!Forms.TryGetValue(c, out char[] forms))
                 {
                     output.Append(c);
+                    if (sourceIndices != null) { sourceIndices.Add(i); }
                     continue;
                 }
+
+                bool joinsBefore = Offers(PreviousJoining(text, i));
 
                 // لا, before anything else: two codepoints, one glyph, and
                 // treating them separately is the single most recognisable
@@ -311,19 +346,61 @@ namespace UnityDirectTMP
                     && i + 1 < text.Length
                     && LamAlef.TryGetValue(text[i + 1], out char[] ligature))
                 {
-                    bool joinedBefore = Offers(PreviousJoining(text, i));
-                    output.Append(joinedBefore ? ligature[1] : ligature[0]);
+                    char joined = joinsBefore ? ligature[1] : ligature[0];
+
+                    if (hasGlyph == null || hasGlyph(joined))
+                    {
+                        output.Append(joined);
+                        if (sourceIndices != null) { sourceIndices.Add(i); }
+                        i++;
+                        continue;
+                    }
+
+                    // No ligature glyph in this font. A lam and an alef drawn
+                    // in their own joining forms is not the ligature a reader
+                    // expects, but it is the word, and it is what a font
+                    // without the ligature can draw.
+                    char alef = text[i + 1];
+
+                    output.Append(Supported(Pick(forms, joinsBefore, true), forms, c, hasGlyph));
+                    if (sourceIndices != null) { sourceIndices.Add(i); }
+
+                    output.Append(Forms.TryGetValue(alef, out char[] alefForms)
+                        ? Supported(Pick(alefForms, true, false), alefForms, alef, hasGlyph)
+                        : alef);
+                    if (sourceIndices != null) { sourceIndices.Add(i + 1); }
+
                     i++;
                     continue;
                 }
 
-                bool linkBefore = Offers(PreviousJoining(text, i)) && Accepts(JoiningOf(c));
+                bool linkBefore = joinsBefore && Accepts(JoiningOf(c));
                 bool linkAfter = Offers(JoiningOf(c)) && Accepts(NextJoining(text, i));
 
-                output.Append(Pick(forms, linkBefore, linkAfter));
+                output.Append(Supported(Pick(forms, linkBefore, linkAfter), forms, c, hasGlyph));
+                if (sourceIndices != null) { sourceIndices.Add(i); }
             }
 
             return output.ToString();
+        }
+
+        // The chosen form, if the font has it; the isolated form, if it has
+        // that; the letter as it was stored, which the font demonstrably has
+        // because it was drawing it before this file was involved.
+        private static char Supported(char form, char[] forms, char original, System.Func<char, bool> hasGlyph)
+        {
+            if (form == '\0') { return original; }
+            if (hasGlyph == null || hasGlyph(form)) { return form; }
+
+            if (forms != null && forms[0] != '\0' && forms[0] != form && hasGlyph(forms[0])) { return forms[0]; }
+
+            return original;
+        }
+
+        private static void FillIdentity(List<int> sourceIndices, string text)
+        {
+            if (sourceIndices == null || string.IsNullOrEmpty(text)) { return; }
+            for (int i = 0; i < text.Length; i++) { sourceIndices.Add(i); }
         }
 
         // ==========================================

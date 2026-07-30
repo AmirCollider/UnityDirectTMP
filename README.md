@@ -75,11 +75,69 @@ Type your actual UI string into the preview field once, and all of them render i
 - ⚡ **Cached, not rebuilt** — font faces are cached per *(file + sampling size + render mode)*, so a screen with 200 labels sharing one font builds exactly one atlas.
 - 🧹 **A repo that stays small** — the `.ttf` is the only thing you commit. No multi-megabyte atlas textures in version control, no merge conflicts on binary assets.
 - 🩺 **A health check that explains itself** — **Unity DirectTMP ▸ Health Check…** reports what the package can see of your project, fixes what it can in one click, and copies the whole report to your clipboard for a bug report.
-- ✍️ **Arabic-script text that actually reads** — Persian, Arabic and Urdu are joined up and put in reading order before they are drawn, both in this package's own windows and, if you want it, in your own labels. See [New in 1.0.1](#new-in-101).
+- ✍️ **Arabic-script text that actually reads** — Persian, Arabic and Urdu are joined up, put in reading order and wrapped correctly in your own labels, not only in this package's windows. See [New in 1.1.0](#new-in-110).
 - 🌐 **Trilingual editor UI** — English, 日本語 and فارسی, switchable from **Unity DirectTMP ▸ Language**.
 
+<a id="new-in-110"></a>
+### ✍️ New in 1.1.0 — labels that read
+
+A font file with Persian in it stops the boxes. It does not make Persian
+*read*.
+
+TextMeshPro hands each codepoint to the font in the order it is stored, so a
+label with every glyph it needs still draws a row of disconnected letters
+running the wrong way. `isRightToLeftText` reverses that order without
+joining anything. No font fixes it, because it is not a font problem — and
+`ی` and `ر` get the blame in the bug reports only because their isolated
+shapes look least like their joined ones.
+
+**Add a Direct Text** next to any `TextMeshProUGUI` / `TextMeshPro` — or
+leave **Shape Text** on in Direct Font, which adds it for you:
+
+```csharp
+label.text = "سلام دنیا";   // still exactly this, in logical order
+```
+
+What that gets you:
+
+- **Letters join.** Initial, medial, final and isolated forms, the four
+  lam-alef ligatures, harakat that must not break a join, and ZWNJ for
+  `می‌شه` and `فونت‌ها`.
+- **Words read right to left**, with Latin runs and numbers still reading
+  forwards inside them, punctuation on the correct end and brackets mirrored.
+- **Wrapped paragraphs read top to bottom.** This one is the reason it is a
+  component rather than a function: reordered text cannot be wrapped, because
+  reordering makes the *last* word of the paragraph the leftmost thing on the
+  line. The label is laid out twice — once in reading order so TextMeshPro
+  reports where its lines fell, then once more with each of those lines
+  reordered on its own.
+- **Rich text survives.** `<b>` and `<color>` move with the words they wrap
+  and swap ends when the span turns around; letters still join across a tag.
+- **Fonts without the presentation forms degrade, rather than break.**
+  Vazirmatn, Noto Sans Arabic and most modern Persian faces carry the plain
+  letters and their OpenType rules and nothing at U+FE70. Every form is
+  checked against the font first, and falls back to the letter itself.
+- **`label.text` is still your string.** The work happens in TextMeshPro's own
+  `textPreprocessor`, so what you set is what you read back — and anything
+  that writes to a label is covered without knowing the component exists: a
+  `TMP_Dropdown` filling its caption, a localisation package, a coroutine
+  typing one character at a time.
+
+For a scene you already built, and for text you draw yourself:
+
+```csharp
+using UnityDirectTMP;
+
+DirectTMP.ShapeAll();                          // every TMP label loaded, dropdowns included
+string visual = DirectTMP.Prepare("سلام دنیا"); // one string, ready to draw
+```
+
+One deliberate exception: the text component *inside* a `TMP_InputField` is
+left alone. Reordering it would put the caret in the wrong place and let
+typing edit the wrong end of the word. Its placeholder is shaped as normal.
+
 <a id="new-in-101"></a>
-### ✍️ New in 1.0.1 — Arabic-script shaping and bidi
+### ✍️ 1.0.1 — the shaper and the bidi algorithm underneath
 
 Unity does not join Arabic-script letters, and it does not reorder
 right-to-left text. Neither does TextMeshPro — `isRightToLeftText` reverses
@@ -237,6 +295,8 @@ UnityDirectTMP/
 │   ├── DirectArabicShaper.cs   ← Arabic-script letters, joined
 │   ├── DirectBidi.cs           ← the Unicode bidirectional algorithm (UAX #9)
 │   ├── DirectDisplayText.cs    ← both of the above, in the order they must happen
+│   ├── DirectRichText.cs       ← the same, over text with <b> and <color> in it
+│   ├── DirectText.cs           ← the component that makes a TMP label read
 │   └── DirectTMP.cs            ← the small public API
 ├── Editor/
 │   ├── Brand/                  ← the Inkwell palette, Inky, the text pack
@@ -262,8 +322,8 @@ UnityDirectTMP/
 |---|---|---|
 | Latin / Cyrillic / Greek | ✅ | Nothing to configure |
 | CJK — 日本語 / 中文 / 한국어 | ✅ | On demand, so no 40 MB atlas sitting in memory |
-| Arabic script — فارسی / العربية / اردو | ✅ | Joined and reordered by `DirectDisplayText`, in the Editor and available for your labels |
-| Hebrew | ✅ | Reordered by `DirectDisplayText`; Hebrew needs no joining |
+| Arabic script — فارسی / العربية / اردو | ✅ | Joined, reordered and wrapped by `DirectText` on your labels, and by `DirectDisplayText` in the Editor's own windows |
+| Hebrew | ✅ | Reordered by the same two; Hebrew needs no joining |
 | Devanagari / Thai | ✅ | Glyphs render; reordering and conjunct shaping are on the roadmap |
 | Color emoji (COLR / CBDT) | 🚧 | Planned |
 
@@ -284,6 +344,7 @@ Unity DirectTMP is for that second world. The font file already knows exactly wh
 - [x] Font Catalog with real per-script coverage read from the file
 - [x] Restyle the Unity Editor's own interface
 - [x] Arabic-script joining forms and bidirectional reordering (Persian / Arabic / Urdu / Hebrew)
+- [x] The same on your own TMP labels, with rich text and wrapped lines handled
 - [ ] `.ttc` collection support with a face-index picker
 - [ ] Arabic-script shaping from the font's own OpenType `GSUB` table, for contextual alternates
 - [ ] Color & emoji fonts (COLR / CBDT)
@@ -300,6 +361,7 @@ Inky is drawn in code, not shipped as an image — no import settings to get wro
 ### 🧪 Tests & CI
 
 - EditMode tests cover the font-file parser (with hand-built fonts), script coverage, the Editor-font safety rules, the catalog's filtering and sorting, the cache key, the fallback ordering, the path helpers, and the consistency of the version and menu tree against this README.
+- Arabic-script text gets its own two files: `DirectTextDisplayTests` for the shaper and the bidi algorithm on plain strings, and `DirectRichTextTests` for what a real label brings with it — rich-text tags that have to move with the words they wrap, wrapped lines that have to read top to bottom, and fonts that carry no presentation forms at all.
 - `python3 .github/scripts/validate_package.py` runs the whole package check with no Unity licence — version drift, missing `.meta` files, duplicate GUIDs, required files, and the invariants no test can reach.
 
 ### 🤝 Contributing
@@ -363,10 +425,62 @@ GameObject に `敵スポーナー` と名前を付けたり、フォルダー�
 - ♻️ **自分で面倒をみるアトラス** — 使われたグリフから順に追加され、必要に応じて複数テクスチャに拡張されます。
 - ⚡ **作り直さず、キャッシュする** — 同じフォントのラベルが200個ある画面でも、アトラスは1つだけです。
 - 🩺 **理由まで説明する動作チェック** — **Unity DirectTMP ▸ Health Check…** が状態を報告し、直せるものはワンクリックで直し、レポート全体をクリップボードにコピーします。
-- ✍️ **読めるアラビア文字** — ペルシア語・アラビア語・ウルドゥー語を、描画前に接続形へ変換し表示順に並べ替えます。本パッケージのウィンドウはもちろん、あなたのラベルでも使えます。
+- ✍️ **読めるアラビア文字** — ペルシア語・アラビア語・ウルドゥー語を、描画前に接続形へ変換し、表示順に並べ替え、折り返しまで正しく処理します。本パッケージのウィンドウだけでなく、あなたのラベルでも。
 - 🌐 **3言語のエディタUI** — English / 日本語 / فارسی。**Unity DirectTMP ▸ Language** で切り替えられます。
 
-### ✍️ 1.0.1 の新機能 — アラビア文字のシェーピングと双方向テキスト
+### ✍️ 1.1.0 の新機能 — 「読める」ラベル
+
+ペルシア語を含むフォントファイルを渡せば、豆腐は消えます。それだけでは
+ペルシア語は**読めるようになりません**。
+
+TextMeshPro は各コードポイントを保存された順のままフォントへ渡すので、
+必要なグリフがすべて揃っていても、ラベルにはばらばらの文字が逆向きに
+並びます。`isRightToLeftText` は順序を反転するだけで、文字は接続しません。
+フォントの問題ではないので、フォントを替えても直りません。
+
+`TextMeshProUGUI` / `TextMeshPro` の隣に **Direct Text** を追加してください。
+Direct Font の **Shape Text**（既定でオン）が自動で追加もします:
+
+```csharp
+label.text = "سلام دنیا";   // 保存順のまま、この文字列のまま
+```
+
+これで得られるもの:
+
+- **文字が接続します** — 語頭形・語中形・語末形・孤立形、ラーム・アリフ合字4種、
+  接続を壊してはいけない発音記号、`می‌شه` や `فونت‌ها` の ZWNJ。
+- **語が右から左に並びます** — 中のラテン文字と数字は左から右のまま、句読点は
+  正しい端に、括弧は鏡像になります。
+- **折り返した段落が上から下に読めます。** これが関数ではなくコンポーネントで
+  ある理由です。並べ替えたテキストは折り返せません（段落の**最後**の語が行の
+  左端に来るため）。そこでラベルを2回レイアウトします — まず読み順のままで
+  TextMeshPro に改行位置を報告させ、次にその各行を個別に並べ替えます。
+- **リッチテキストが壊れません。** `<b>` や `<color>` は囲んでいる語と一緒に
+  移動し、範囲が反転すれば開始タグと終了タグも入れ替わります。タグをまたいで
+  文字も接続します。
+- **表示形を持たないフォントでも豆腐になりません。** Vazirmatn や Noto Sans
+  Arabic など最近のペルシア語書体は、素の文字と OpenType の規則だけを持ち
+  U+FE70 には何もありません。各表示形はフォントに存在するか確認され、無ければ
+  元の文字へフォールバックします。
+- **`label.text` はあなたの文字列のままです。** 処理は TextMeshPro 自身の
+  `textPreprocessor` で行われるので、設定した文字列がそのまま読み出せます。
+  ラベルに書き込むものはすべて自動的に対象になります — `TMP_Dropdown` の
+  キャプション、ローカライズ系パッケージ、1文字ずつ流すコルーチンも。
+
+既存のシーンと、自分で描画するテキストには:
+
+```csharp
+using UnityDirectTMP;
+
+DirectTMP.ShapeAll();                          // 読み込み済みの全 TMP ラベル（ドロップダウン内も）
+string visual = DirectTMP.Prepare("سلام دنیا"); // 1文字列を描画可能な形へ
+```
+
+意図的な例外がひとつ。`TMP_InputField` の**内部**のテキストコンポーネントは
+対象外です。並べ替えるとキャレット位置がずれ、入力が語の反対側に入って
+しまうためです。プレースホルダーは通常どおり処理されます。
+
+### ✍️ 1.0.1 — その土台のシェーパーと双方向アルゴリズム
 
 Unity はアラビア文字を接続せず、右から左へのテキストを並べ替えもしません。
 TextMeshPro も同じで、`isRightToLeftText` は順序を反転するだけで、文字は
@@ -545,10 +659,66 @@ MIT — 詳細は [LICENSE](LICENSE) をご覧ください。無料です。リ�
 - ♻️ **اطلسی که خودش حواسش به خودشه** — گلیف‌ها به‌مرور اضافه می‌شن و در صورت نیاز روی چند تکسچر رشد می‌کنن.
 - ⚡ **کَش می‌شه، دوباره ساخته نمی‌شه** — یه صفحه با ۲۰۰ لیبل که همه یه فونت دارن، فقط یه اطلس می‌سازه.
 - 🩺 **یه بررسی سلامت که خودش رو توضیح می‌ده** — **Unity DirectTMP ▸ Health Check…** وضعیت رو گزارش می‌ده، هرچی رو بشه با یه کلیک درست می‌کنه، و کل گزارش رو برای ثبت باگ کپی می‌کنه.
-- ✍️ **متن فارسی که واقعاً خونده می‌شه** — حروف قبل از رسم به هم می‌چسبن و به ترتیب خوندن مرتب می‌شن؛ هم توی پنجره‌های خود این پکیج، هم اگه بخوای توی لیبل‌های خودت.
+- ✍️ **متن فارسی که واقعاً خونده می‌شه** — حروف به هم می‌چسبن، کلمه‌ها راست‌به‌چپ مرتب می‌شن و خط‌های شکسته‌شده هم درست می‌شن؛ نه فقط توی پنجره‌های خود پکیج، بلکه توی لیبل‌های خودت.
 - 🌐 **رابط سه‌زبانه** — English / 日本語 / فارسی، از **Unity DirectTMP ▸ Language**.
 
-### ✍️ تازه در ۱.۰.۱ — چسبیدن حروف و ترتیب راست‌به‌چپ
+### ✍️ تازه در ۱.۱.۰ — لیبل‌هایی که خونده می‌شن
+
+فایل فونتی که فارسی داره، جلوی مربع‌ها رو می‌گیره. ولی باعث نمی‌شه فارسی
+**خونده بشه**.
+
+TextMeshPro هر کاراکتر رو به همون ترتیبی که ذخیره شده به فونت می‌ده، پس
+لیبلی که تمام گلیف‌های لازم رو داره، باز هم یه ردیف حرفِ جدا و برعکس نشون
+می‌ده. `isRightToLeftText` فقط ترتیب رو برعکس می‌کنه و حروف رو نمی‌چسبونه.
+این مشکلِ فونت نیست، پس با عوض کردن فونت درست نمی‌شه — و اگه توی گزارش‌ها
+همیشه اسم `ی` و `ر` میاد، فقط به این خاطره که شکل جدای این دوتا از همه بیشتر
+با شکل چسبیده‌شون فرق داره.
+
+کنار هر `TextMeshProUGUI` / `TextMeshPro` یه **Direct Text** بذار — یا گزینه‌ی
+**Shape Text** توی Direct Font رو روشن بذار تا خودش اضافه‌ش کنه:
+
+```csharp
+label.text = "سلام دنیا";   // دقیقاً همین می‌مونه، به ترتیب منطقی
+```
+
+چی گیرت میاد:
+
+- **حروف می‌چسبن** — شکل‌های آغازی، میانی، پایانی و جدا، چهار ترکیب لام‌الف،
+  اعرابی که نباید اتصال رو بشکنه، و نیم‌فاصله برای `می‌شه` و `فونت‌ها`.
+- **کلمه‌ها راست‌به‌چپ می‌شن** — کلمه‌های لاتین و عددها همچنان چپ‌به‌راست خونده
+  می‌شن، نقطه و ویرگول سمت درست می‌شینن و پرانتزها آینه می‌شن.
+- **پاراگرافِ شکسته‌شده از بالا به پایین خونده می‌شه.** دلیل اینکه این یه
+  کامپوننته و نه یه تابع، همینه: متنِ مرتب‌شده رو نمی‌شه شکست، چون بعد از
+  مرتب‌سازی **آخرین** کلمه‌ی پاراگراف می‌ره سمت چپِ خط. برای همین لیبل دو بار
+  چیده می‌شه — اول به ترتیب خوندن، تا TextMeshPro بگه خط‌ها کجا شکستن، بعد
+  دوباره با هر خط که جدا مرتب شده.
+- **تگ‌های ریچ‌تکست سالم می‌مونن.** `<b>` و `<color>` همراه کلمه‌ای که دورشون
+  گرفته جابه‌جا می‌شن و اگه اون تیکه برعکس بشه، تگ باز و بسته هم جاشون عوض
+  می‌شه. حروف از دو طرف تگ هم به هم می‌چسبن.
+- **فونت‌های بدون شکل‌های نمایشی دیگه مربع نمی‌دن.** وزیرمتن، Noto Sans Arabic
+  و بیشتر فونت‌های امروزی فارسی فقط حروف ساده و قواعد OpenType رو دارن و توی
+  U+FE70 هیچی ندارن. حالا هر شکل اول از فونت پرسیده می‌شه و اگه نبود، به خود
+  حرف برمی‌گرده.
+- **`label.text` هنوز همون رشته‌ی خودته.** کار توی `textPreprocessor` خود
+  TextMeshPro انجام می‌شه، پس هرچی ست کردی همون رو پس می‌گیری — و هر چیزی که
+  توی لیبل می‌نویسه بدون اینکه از این کامپوننت خبر داشته باشه پوشش داده می‌شه:
+  کپشن یه `TMP_Dropdown`، پکیج‌های لوکالایز، یا کوروتینی که حرف‌به‌حرف تایپ
+  می‌کنه.
+
+برای صحنه‌ای که از قبل ساختی، و برای متنی که خودت رسم می‌کنی:
+
+```csharp
+using UnityDirectTMP;
+
+DirectTMP.ShapeAll();                          // همه‌ی لیبل‌های TMP لودشده، شامل داخل دراپ‌دان‌ها
+string visual = DirectTMP.Prepare("سلام دنیا"); // یه رشته، آماده‌ی رسم
+```
+
+یه استثنا هست، عمدی: کامپوننت متنِ **داخلِ** `TMP_InputField` دست‌نخورده
+می‌مونه. اگه مرتبش کنیم، مکان‌نما جای اشتباه می‌ره و تایپ از سمت اشتباه کلمه
+انجام می‌شه. پلیس‌هولدرش مثل بقیه اصلاح می‌شه.
+
+### ✍️ ۱.۰.۱ — شِیپر و الگوریتم دوجهته‌ای که زیرش کار می‌کنه
 
 یونیتی حروف خط عربی رو به هم نمی‌چسبونه و متن راست‌به‌چپ رو هم مرتب نمی‌کنه.
 TextMeshPro هم همین‌طور: `isRightToLeftText` فقط ترتیب رو برعکس می‌کنه و حروف

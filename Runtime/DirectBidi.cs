@@ -193,34 +193,75 @@ namespace UnityDirectTMP
         /// </summary>
         public static string Reorder(string text, int paragraphDirection)
         {
+            return Reorder(text, paragraphDirection, null);
+        }
+
+        /// <summary>
+        /// The same reordering, filling <paramref name="sourceIndices"/> with
+        /// the index in <paramref name="text"/> that each character of the
+        /// result came from.
+        ///
+        /// Reordering is a permutation, and a caller that has to keep
+        /// something attached to a character through it - a rich-text tag
+        /// that has to still wrap the same word once the word has moved to
+        /// the other end of the line - needs the permutation, not just its
+        /// result. Characters the algorithm removes outright (rule X9's
+        /// boundary neutrals) simply have no entry.
+        /// </summary>
+        public static string Reorder(string text, int paragraphDirection, List<int> sourceIndices)
+        {
+            if (sourceIndices != null) { sourceIndices.Clear(); }
             if (string.IsNullOrEmpty(text)) { return text; }
-            if (paragraphDirection != RightToLeft && !ContainsRightToLeft(text)) { return text; }
+
+            if (paragraphDirection != RightToLeft && !ContainsRightToLeft(text))
+            {
+                if (sourceIndices != null)
+                {
+                    for (int i = 0; i < text.Length; i++) { sourceIndices.Add(i); }
+                }
+                return text;
+            }
 
             // Newlines are paragraph boundaries, and a paragraph is the unit
             // the algorithm works on. Running the whole label through as one
             // string would reorder its lines against each other.
             if (text.IndexOf('\n') >= 0)
             {
-                string[] lines = text.Split('\n');
-                for (int i = 0; i < lines.Length; i++)
+                var joined = new System.Text.StringBuilder(text.Length);
+                int start = 0;
+
+                while (true)
                 {
-                    lines[i] = ReorderLine(lines[i], paragraphDirection);
+                    int newline = text.IndexOf('\n', start);
+                    int end = newline < 0 ? text.Length : newline;
+
+                    joined.Append(ReorderLine(text.Substring(start, end - start), paragraphDirection, sourceIndices, start));
+
+                    if (newline < 0) { break; }
+
+                    joined.Append('\n');
+                    if (sourceIndices != null) { sourceIndices.Add(newline); }
+                    start = newline + 1;
                 }
-                return string.Join("\n", lines);
+
+                return joined.ToString();
             }
 
-            return ReorderLine(text, paragraphDirection);
+            return ReorderLine(text, paragraphDirection, sourceIndices, 0);
         }
 
-        private static string ReorderLine(string text, int paragraphDirection)
+        private static string ReorderLine(string text, int paragraphDirection, List<int> sourceIndices, int offset)
         {
             if (string.IsNullOrEmpty(text)) { return text; }
 
             // --- X9: boundary neutrals are removed outright. ---
             var chars = new List<char>(text.Length);
+            var kept = sourceIndices == null ? null : new List<int>(text.Length);
             for (int i = 0; i < text.Length; i++)
             {
-                if (Classify(text[i]) != DirectBidiClass.BN) { chars.Add(text[i]); }
+                if (Classify(text[i]) == DirectBidiClass.BN) { continue; }
+                chars.Add(text[i]);
+                if (kept != null) { kept.Add(offset + i); }
             }
             if (chars.Count == 0) { return string.Empty; }
 
@@ -266,9 +307,22 @@ namespace UnityDirectTMP
 
             ApplyLineBreakingLevels(original, levels, paragraphLevel);
             MirrorInPlace(chars, levels);
-            ReverseRuns(chars, levels);
 
-            return new string(chars.ToArray());
+            // L2 is a permutation, so it is applied to an array of positions
+            // rather than to the characters themselves. The characters fall
+            // out of it, and so does the map back to where each one started.
+            var order = new int[count];
+            for (int i = 0; i < count; i++) { order[i] = i; }
+            ReverseRuns(order, levels);
+
+            var visual = new char[count];
+            for (int i = 0; i < count; i++)
+            {
+                visual[i] = chars[order[i]];
+                if (kept != null) { sourceIndices.Add(kept[order[i]]); }
+            }
+
+            return new string(visual);
         }
 
         // ==========================================
@@ -523,7 +577,7 @@ namespace UnityDirectTMP
         // and the entire reason the output reads
         // correctly.
         // ==========================================
-        private static void ReverseRuns(List<char> chars, int[] levels)
+        private static void ReverseRuns(int[] order, int[] levels)
         {
             int highest = 0;
             int lowestOdd = int.MaxValue;
@@ -544,18 +598,18 @@ namespace UnityDirectTMP
 
                     int start = i;
                     while (i < levels.Length && levels[i] >= level) { i++; }
-                    Reverse(chars, start, i - 1);
+                    Reverse(order, start, i - 1);
                 }
             }
         }
 
-        private static void Reverse(List<char> chars, int start, int end)
+        private static void Reverse(int[] order, int start, int end)
         {
             while (start < end)
             {
-                char swap = chars[start];
-                chars[start] = chars[end];
-                chars[end] = swap;
+                int swap = order[start];
+                order[start] = order[end];
+                order[end] = swap;
                 start++;
                 end--;
             }

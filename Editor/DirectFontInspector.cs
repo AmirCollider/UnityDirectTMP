@@ -36,6 +36,7 @@ namespace UnityDirectTMP.Editor
         private SerializedProperty fallbackChain;
         private SerializedProperty preserveMaterial;
         private SerializedProperty applyOnEnable;
+        private SerializedProperty shapeText;
         private SerializedProperty overrideSettings;
         private SerializedProperty settings;
 
@@ -48,6 +49,7 @@ namespace UnityDirectTMP.Editor
             fallbackChain = serializedObject.FindProperty("fallbackChain");
             preserveMaterial = serializedObject.FindProperty("preserveMaterial");
             applyOnEnable = serializedObject.FindProperty("applyOnEnable");
+            shapeText = serializedObject.FindProperty("shapeText");
             overrideSettings = serializedObject.FindProperty("overrideSettings");
             settings = serializedObject.FindProperty("settings");
         }
@@ -92,6 +94,12 @@ namespace UnityDirectTMP.Editor
                 "Build and apply the font whenever this component is enabled. Leave it on unless you are driving the font entirely from code.",
                 "このコンポーネントが有効になるたびにフォントを構築して適用します。コードから完全に制御する場合以外はオンのままで構いません。",
                 "هر بار که این کامپوننت فعال می‌شه فونت رو می‌سازه و اعمال می‌کنه. مگه اینکه کلاً از کد کنترلش کنی، روشن بذارش."));
+
+            EditorGUILayout.PropertyField(shapeText, DirectTMPText.C(
+                "Shape Text", "文字を整形", "اصلاح متن",
+                "Also make Arabic-script text read: letters joined, right-to-left words in reading order, wrapped lines top to bottom. A font file alone stops the boxes; it cannot do this, and neither can TextMeshPro. Adds a Direct Text component, where the settings for it live.",
+                "アラビア文字系のテキストが正しく読めるようにします。字形の結合、右から左への語順、折り返し行の順序まで含みます。フォントファイルだけでは豆腐が消えるだけで、この処理は TextMeshPro にもありません。設定は追加される Direct Text コンポーネント側にあります。",
+                "کاری می‌کنه که متن فارسی/عربی درست خونده بشه: حروف بهم بچسبن، کلمه‌ها راست‌به‌چپ بشن و خطوط شکسته‌شده از بالا به پایین خونده بشن. فایل فونت فقط جلوی مربع‌ها رو می‌گیره؛ این کار نه از فونت برمیاد نه از TextMeshPro. یه کامپوننت Direct Text اضافه می‌کنه که تنظیماتش اونجاست."));
 
             EditorGUILayout.Space(4);
 
