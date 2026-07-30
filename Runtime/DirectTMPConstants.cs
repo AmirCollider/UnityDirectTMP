@@ -92,7 +92,7 @@ namespace UnityDirectTMP
         // not is exactly the kind of thing nobody notices
         // until somebody clicks a dead link.
         // ==========================================
-        public const string SiteBaseUrl = "https://amircollider.n95pluss.workers.dev";
+        public const string SiteBaseUrl = "https://amircollider.com";
         public const string ProductUrl = SiteBaseUrl + "/unity-directtmp";
         public const string ToolsCatalogUrl = SiteBaseUrl + "/tools";
         public const string DocsUrl = GithubUrl + "#readme";
