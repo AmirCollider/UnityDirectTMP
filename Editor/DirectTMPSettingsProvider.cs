@@ -264,7 +264,7 @@ namespace UnityDirectTMP.Editor
                     GUILayout.Width(EditorGUIUtility.labelWidth));
 
                 int index = DirectTMPText.IndexOf(DirectTMPText.Current);
-                int picked = EditorGUILayout.Popup(index, DirectTMPText.DisplayLabels, GUILayout.Width(140));
+                int picked = EditorGUILayout.Popup(index, DirectTMPText.Labels, GUILayout.Width(140));
                 if (picked != index)
                 {
                     DirectTMPText.Current = DirectTMPText.Codes[picked];

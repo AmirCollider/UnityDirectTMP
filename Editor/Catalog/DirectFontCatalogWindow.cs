@@ -120,13 +120,18 @@ namespace UnityDirectTMP.Editor
 
                 GUILayout.Space(6);
 
+                // A Popup's item list is drawn by the operating system, which
+                // shapes and reorders it on its own - so these go in as
+                // stored. Preparing them here is what made the open dropdown
+                // read backwards while the closed button beside it read
+                // correctly.
                 var scriptLabels = new List<string>
                 {
-                    DirectTMPText.L("Any script", "すべての文字体系", "همه‌ی خط‌ها")
+                    DirectTMPText.Native("Any script", "すべての文字体系", "همه‌ی خط‌ها")
                 };
                 foreach (DirectScript script in DirectFontScripts.All)
                 {
-                    scriptLabels.Add(DirectTMPText.Show(DirectFontScripts.NameFor(script, DirectTMPText.Current)));
+                    scriptLabels.Add(DirectTMPText.NativeShow(DirectFontScripts.NameFor(script, DirectTMPText.Current)));
                 }
 
                 int pickedScript = EditorGUILayout.Popup(_scriptFilter, scriptLabels.ToArray(), EditorStyles.toolbarPopup, GUILayout.Width(140));
@@ -139,10 +144,10 @@ namespace UnityDirectTMP.Editor
 
                 var sortLabels = new[]
                 {
-                    DirectTMPText.L("Name", "名前", "نام"),
-                    DirectTMPText.L("Most glyphs", "グリフ数", "بیشترین گلیف"),
-                    DirectTMPText.L("Most scripts", "文字体系の数", "بیشترین خط"),
-                    DirectTMPText.L("Largest file", "ファイルサイズ", "بزرگ‌ترین فایل")
+                    DirectTMPText.Native("Name", "名前", "نام"),
+                    DirectTMPText.Native("Most glyphs", "グリフ数", "بیشترین گلیف"),
+                    DirectTMPText.Native("Most scripts", "文字体系の数", "بیشترین خط"),
+                    DirectTMPText.Native("Largest file", "ファイルサイズ", "بزرگ‌ترین فایل")
                 };
 
                 var pickedSort = (DirectCatalogSort)EditorGUILayout.Popup((int)_sort, sortLabels, EditorStyles.toolbarPopup, GUILayout.Width(120));
@@ -428,9 +433,10 @@ namespace UnityDirectTMP.Editor
             DirectEditorFontProblem problem = DirectEditorFont.Validate(plan);
             if (DirectEditorFontRules.IsFatal(problem))
             {
+                // A modal dialog is an OS window, not an IMGUI one.
                 EditorUtility.DisplayDialog(
                     DirectTMPConstants.ToolName,
-                    DirectTMPText.Dialog(DirectEditorFontRules.Describe(problem)),
+                    DirectEditorFontRules.Describe(problem),
                     "OK");
                 return;
             }

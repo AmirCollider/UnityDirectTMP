@@ -152,9 +152,10 @@ namespace UnityDirectTMP.Editor
         }
 
         /// <summary>
-        /// The language names as they should be drawn. فارسی is Arabic script
-        /// like anything else and needs joining up before it goes into a
-        /// dropdown.
+        /// The language names prepared for an IMGUI label. NOT for a Popup -
+        /// a dropdown list is drawn by the operating system, which prepares
+        /// it itself; use <see cref="Labels"/> there.
+        /// See <see cref="Native(string,string,string)"/>.
         /// </summary>
         public static string[] DisplayLabels
         {
@@ -327,51 +328,69 @@ namespace UnityDirectTMP.Editor
         }
 
         // ==========================================
-        // Dialog
+        // Native - text for the surfaces Unity does NOT
+        // draw itself.
         //
-        // EditorUtility.DisplayDialog owns its own box
-        // and wraps its own text, and there is no hook
-        // to break a line inside it - so a prepared
-        // Persian paragraph would be re-wrapped into
-        // lines that read bottom to top, the one failure
-        // this whole file exists to prevent.
+        // This is the other half of the fix, and it is
+        // the opposite of everything above.
         //
-        // The answer is to break it here, by character
-        // count rather than by measurement, and hand the
-        // dialog lines short enough that it never needs
-        // to wrap them itself. A dialog is a handful of
-        // sentences; counting characters is coarse and
-        // completely adequate.
+        // Unity's editor is two text systems, not one.
+        // IMGUI draws the inside of a window, and it
+        // joins nothing and reorders nothing - which is
+        // why every label in this package goes through
+        // Display() first. But a dropdown list, the menu
+        // bar, a right-click menu and a modal dialog are
+        // not IMGUI: Unity hands those to the operating
+        // system, and the operating system has a complete
+        // text stack. It shapes and it reorders, all on
+        // its own.
+        //
+        // So handing a prepared string to a dropdown
+        // reorders it a second time, and the item comes
+        // out backwards while the button that opens it -
+        // an IMGUI control, drawn one pixel away - reads
+        // correctly. That is the bug this exists to stop,
+        // and it is invisible until somebody opens the
+        // menu.
+        //
+        // Native() is Raw() with a name that says why.
+        // Every call site that feeds an OS-drawn surface
+        // uses it, so the whole assumption is one method
+        // and one grep - and if a platform ever turns out
+        // to leave its menus unshaped, this is the single
+        // line that has to change.
         // ==========================================
-        private const int DialogLineLength = 64;
 
         /// <summary>
-        /// Prepares a message for <c>EditorUtility.DisplayDialog</c>, which
-        /// draws text with the same Unity text stack every other label uses
-        /// and has the same trouble with it. Takes LOGICAL text.
+        /// A localised string for a surface the operating system draws
+        /// itself - a Popup's item list, a <c>[MenuItem]</c> path, a
+        /// <c>GenericMenu</c>, <c>EditorUtility.DisplayDialog</c>, a file
+        /// panel's title.
+        ///
+        /// Deliberately NOT prepared. The OS shapes and reorders it, so
+        /// preparing it here would do the job twice and undo it.
         /// </summary>
-        public static string Dialog(string logical)
+        public static string Native(string en, string ja, string fa)
         {
-            if (string.IsNullOrEmpty(logical)) { return logical; }
-            if (!DirectDisplayText.NeedsPreparing(logical)) { return logical; }
+            return Raw(en, ja, fa);
+        }
 
-            var lines = new List<string>();
-            foreach (string line in logical.Split('\n'))
-            {
-                if (!DirectDisplayText.NeedsPreparing(line))
-                {
-                    lines.Add(line);
-                    continue;
-                }
+        /// <summary>
+        /// A word from the shared vocabulary, for an OS-drawn surface.
+        /// See <see cref="Native(string,string,string)"/>.
+        /// </summary>
+        public static string NativeWord(string key)
+        {
+            return WordRaw(key);
+        }
 
-                lines.AddRange(DirectDisplayText.WrapToLines(
-                    line,
-                    DialogLineLength,
-                    candidate => candidate.Length,
-                    DirectBidi.AutoDirection));
-            }
-
-            return string.Join("\n", lines.ToArray());
+        /// <summary>
+        /// Text this file did not write - a font family name, a path - for an
+        /// OS-drawn surface. Passed through untouched, for the same reason.
+        /// </summary>
+        public static string NativeShow(string text)
+        {
+            return text;
         }
 
         // ==========================================

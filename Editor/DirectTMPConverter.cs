@@ -70,14 +70,15 @@ namespace UnityDirectTMP.Editor
         {
             bool proceed = EditorUtility.DisplayDialog(
                 DirectTMPConstants.ToolName,
-                DirectTMPText.Dialog(
-                    "Convert EVERY TextMeshPro label in this project to DirectTMP?\n\n" +
-                    "This adds a DirectFont to every label across all Prefabs and Scenes and saves the changes to disk. " +
-                    "Please make sure your work is committed or backed up first.\n\n" +
-                    "─────\n" +
-                    "プロジェクト内のすべての TextMeshPro ラベルを変換します。先にバックアップを推奨します。\n\n" +
-                    "─────\n" +
-                    "همه‌ی لیبل‌های TextMeshPro پروژه رو تبدیل می‌کنه و روی دیسک ذخیره می‌کنه. بهتره اول بک‌آپ بگیری."),
+                // Stored order, not display order: a modal dialog is an OS
+                // window and does its own shaping and reordering.
+                "Convert EVERY TextMeshPro label in this project to DirectTMP?\n\n" +
+                "This adds a DirectFont to every label across all Prefabs and Scenes and saves the changes to disk. " +
+                "Please make sure your work is committed or backed up first.\n\n" +
+                "─────\n" +
+                "プロジェクト内のすべての TextMeshPro ラベルを変換します。先にバックアップを推奨します。\n\n" +
+                "─────\n" +
+                "همه‌ی لیبل‌های TextMeshPro پروژه رو تبدیل می‌کنه و روی دیسک ذخیره می‌کنه. بهتره اول بک‌آپ بگیری.",
                 "Convert everything",
                 "Cancel");
             if (!proceed) { return; }
@@ -294,12 +295,11 @@ namespace UnityDirectTMP.Editor
             {
                 EditorUtility.DisplayDialog(
                     DirectTMPConstants.ToolName,
-                    DirectTMPText.Dialog(
-                        "Select one or more GameObjects with a TextMeshPro component first.\n\n" +
-                        "─────\n" +
-                        "先に TextMeshPro を持つ GameObject を選択してください。\n\n" +
-                        "─────\n" +
-                        "اول یک یا چند GameObject که TextMeshPro دارن رو انتخاب کن."),
+                    "Select one or more GameObjects with a TextMeshPro component first.\n\n" +
+                    "─────\n" +
+                    "先に TextMeshPro を持つ GameObject を選択してください。\n\n" +
+                    "─────\n" +
+                    "اول یک یا چند GameObject که TextMeshPro دارن رو انتخاب کن.",
                     "OK");
             }
             else

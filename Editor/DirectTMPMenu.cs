@@ -228,7 +228,7 @@ namespace UnityDirectTMP.Editor
             {
                 EditorUtility.DisplayDialog(
                     DirectTMPConstants.ToolName,
-                    DirectTMPText.Dialog(DirectEditorFontRules.Describe(problem)),
+                    DirectEditorFontRules.Describe(problem),
                     "OK");
                 return;
             }

@@ -396,15 +396,75 @@ namespace UnityDirectTMP.Editor.Tests
             Assert.AreSame(path, DirectTMPText.Show(path));
         }
 
+        // ==========================================
+        // The two text systems
+        //
+        // Unity's editor draws text two different ways,
+        // and they need opposite treatment:
+        //
+        //   IMGUI    the inside of a window. Joins
+        //            nothing, reorders nothing - so the
+        //            package prepares the text.
+        //   the OS   a Popup's item list, the menu bar,
+        //            a right-click menu, a modal dialog.
+        //            Has a full text stack and does both
+        //            itself - so the package must NOT.
+        //
+        // Getting the second one wrong is invisible until
+        // somebody opens a dropdown, and then the item
+        // reads backwards while the button that opened it
+        // reads correctly. These tests are the guard.
+        // ==========================================
+
         [Test]
-        public void ThePersianMenuItemIsSpelledTheWayAMenuBarCanDrawIt()
+        public void TextForAnOsDrawnSurfaceIsNotPrepared()
         {
-            // The one string in the package that cannot be prepared at
-            // runtime, because a [MenuItem] path is a compile-time constant.
-            // If the shaper ever changes, this is what says so.
-            Assert.AreEqual(
-                DirectTMPEditorConstants.MenuLanguageRoot + DirectDisplayText.Prepare("فارسی"),
-                DirectTMPEditorConstants.MenuLanguagePersian);
+            string original = DirectTMPText.Current;
+            try
+            {
+                DirectTMPText.Current = DirectTMPText.Persian;
+
+                const string en = "Any script";
+                const string fa = "همه‌ی خط‌ها";
+
+                Assert.AreEqual(fa, DirectTMPText.Native(en, "すべての文字体系", fa),
+                    "A dropdown item is reordered by the OS; preparing it here does it twice.");
+                Assert.AreNotEqual(
+                    DirectTMPText.L(en, "すべての文字体系", fa),
+                    DirectTMPText.Native(en, "すべての文字体系", fa),
+                    "If these two agree, one of the two text systems is being served wrong.");
+
+                Assert.AreEqual(DirectTMPText.WordRaw("close"), DirectTMPText.NativeWord("close"));
+                Assert.AreEqual(fa, DirectTMPText.NativeShow(fa));
+            }
+            finally
+            {
+                DirectTMPText.Current = original;
+            }
+        }
+
+        [Test]
+        public void ThePersianMenuItemIsStoredUnprepared()
+        {
+            // A [MenuItem] path goes to the OS menu bar, which shapes and
+            // reorders it. 1.0.1 briefly wrote this one out pre-prepared,
+            // which turned it around twice.
+            StringAssert.Contains("فارسی", DirectTMPEditorConstants.MenuLanguagePersian);
+
+            Assert.IsFalse(
+                DirectDisplayText.LooksPrepared(DirectTMPEditorConstants.MenuLanguagePersian),
+                "The menu bar prepares its own text; this must go in as stored.");
+        }
+
+        [Test]
+        public void TheLanguageDropdownUsesStoredNamesAndTheLabelUsesPreparedOnes()
+        {
+            // Labels[] feeds Popup, which the OS draws. DisplayLabels[] feeds
+            // the IMGUI read-out in the About window. They must not be swapped.
+            int persian = DirectTMPText.IndexOf(DirectTMPText.Persian);
+
+            Assert.IsFalse(DirectDisplayText.LooksPrepared(DirectTMPText.Labels[persian]));
+            Assert.IsTrue(DirectDisplayText.LooksPrepared(DirectTMPText.DisplayLabels[persian]));
         }
 
         [Test]

@@ -99,11 +99,13 @@ namespace UnityDirectTMP.Editor
 
         private static void CreateChain()
         {
+            // A save panel is an OS window: it does its own shaping and
+            // reordering, so it wants the strings as stored.
             string path = EditorUtility.SaveFilePanelInProject(
-                DirectTMPText.L("New Fallback Chain", "新しいフォールバックチェーン", "زنجیره‌ی فال‌بک تازه"),
+                DirectTMPText.Native("New Fallback Chain", "新しいフォールバックチェーン", "زنجیره‌ی فال‌بک تازه"),
                 "DirectFontFallbackChain",
                 "asset",
-                DirectTMPText.L(
+                DirectTMPText.Native(
                     "Where should the fallback chain asset live?",
                     "フォールバックチェーンのアセットをどこに置きますか?",
                     "فایل زنجیره‌ی فال‌بک کجا ساخته بشه؟"));

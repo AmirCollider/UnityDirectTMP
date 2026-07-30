@@ -56,8 +56,8 @@ So the package now does it.
 - All three are public, `Runtime`, Unity-free and unit-tested, so a project
   can use them on its own labels — TextMeshPro's `isRightToLeftText` reverses
   without joining, and this is the missing half.
-- `DirectTextDisplayTests` — 34 tests over shaping, reordering, wrapping and
-  the editor's own text funnel.
+- `DirectTextDisplayTests` — 36 tests over shaping, reordering, wrapping and
+  the two text systems the editor draws with.
 
 ### Fixed
 - **Every Persian string in every window** now renders joined and in reading
@@ -71,10 +71,15 @@ So the package now does it.
 - **Long paragraphs wrap in the right direction.** `EditorGUILayout.HelpBox`
   cannot be told where to break a line, so the explanations that used it are
   drawn by the package instead.
-- **The `فارسی` menu item** in `Unity DirectTMP ▸ Language` is spelled in the
-  form a menu bar can draw, since a `[MenuItem]` path is a compile-time
-  constant and cannot be prepared at runtime. A test pins it to the shaper's
-  output so the two cannot drift.
+- **Dropdown lists, the menu bar, right-click menus and modal dialogs are
+  left alone.** Unity's editor draws text two different ways: IMGUI draws the
+  inside of a window and does no shaping and no reordering, but a Popup's item
+  list, a `[MenuItem]` path and an `EditorUtility.DisplayDialog` are handed to
+  the operating system, which has a full text stack and does both itself.
+  Preparing those does the job twice and undoes it — the open dropdown read
+  backwards while the button that opened it read correctly. Every OS-drawn
+  surface now goes through `DirectTMPText.Native`, so the assumption is one
+  method and one grep.
 - **The Fallback Chain window** was the one screen that had never been
   translated. It speaks all three languages now.
 
