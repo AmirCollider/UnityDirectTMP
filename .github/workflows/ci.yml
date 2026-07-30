@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ==========================================
+  # Package validation.
+  #
+  # Runs on every push with no Unity licence and no
+  # secrets, so a fork and a pull request get the same
+  # answer the maintainer does. It checks the things
+  # that are cheap to break and expensive to notice: a
+  # version that drifted between package.json and the
+  # C# constant, a script shipped without its .meta
+  # (which hands every user a different GUID and rots
+  # every reference to it), a UnityEditor reference
+  # that sneaked into the runtime assembly, and the
+  # Editor-font safety rule quietly becoming a warning.
+  # ==========================================
+  validate:
+    name: Validate package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate
+        run: python3 .github/scripts/validate_package.py
+
+  # ==========================================
+  # EditMode tests, in a real Unity Editor.
+  #
+  # Needs a licence, which a fork cannot have. Rather
+  # than failing red for contributors who can never
+  # make it pass, the job checks for the secret first
+  # and reports "skipped" when it is absent, so a red
+  # X always means a real failure.
+  #
+  # To enable: add UNITY_LICENSE (the contents of a
+  # .ulf activation file), UNITY_EMAIL and
+  # UNITY_PASSWORD to the repository secrets. See
+  # https://game.ci/docs/github/activation
+  # ==========================================
+  tests:
+    name: EditMode tests (Unity ${{ matrix.unity }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The package's declared floor, and a current release.
+        # A tool that reflects into EditorStyles and calls a
+        # TextMeshPro factory that changed shape in TMP 3.2 is
+        # exactly the kind that breaks quietly between major
+        # Unity versions, so both ends are covered.
+        unity: ["2021.3.45f1", "6000.0.32f1"]
+    steps:
+      - name: Check for Unity licence
+        id: licence
+        run: |
+          if [ -n "${{ secrets.UNITY_LICENSE }}" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::UNITY_LICENSE is not set, so the Unity EditMode tests were skipped. See .github/workflows/ci.yml for how to enable them."
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.licence.outputs.present == 'true'
+        with:
+          lfs: true
+
+      # The package is not a Unity project on its own. A minimal
+      # host project is assembled around it so the Test Runner has
+      # something to open, with the package referenced from disk.
+      - name: Build a host project around the package
+        if: steps.licence.outputs.present == 'true'
+        run: python3 .github/scripts/make_test_project.py "$GITHUB_WORKSPACE" "$RUNNER_TEMP/HostProject"
+
+      - uses: actions/cache@v4
+        if: steps.licence.outputs.present == 'true'
+        with:
+          path: ${{ runner.temp }}/HostProject/Library
+          key: Library-${{ matrix.unity }}-${{ hashFiles('Runtime/**', 'Editor/**', 'Tests/**') }}
+          restore-keys: |
+            Library-${{ matrix.unity }}-
+
+      - name: Run EditMode tests
+        if: steps.licence.outputs.present == 'true'
+        uses: game-ci/unity-test-runner@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: ${{ runner.temp }}/HostProject
+          unityVersion: ${{ matrix.unity }}
+          testMode: editmode
+          artifactsPath: test-results
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
+          checkName: EditMode results (${{ matrix.unity }})
+
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.licence.outputs.present == 'true'
+        with:
+          name: test-results-${{ matrix.unity }}
+          path: test-results
