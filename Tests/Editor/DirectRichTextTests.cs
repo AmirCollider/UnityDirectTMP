@@ -112,6 +112,96 @@ namespace UnityDirectTMP.Editor.Tests
                 "Seen initial, lam medial, alef final, meem isolated - the word, without the ligature.");
         }
 
+        // ==========================================
+        // The block a font leaves out.
+        //
+        // Persian's own letters - پ چ ژ ک گ ی - shape
+        // into U+FB50..FBFF. The rest of the alphabet
+        // shapes into U+FE70..FEFF. Fonts do not treat
+        // the two alike: Segoe UI, the font on every
+        // Windows machine, carries the second in full and
+        // none of the first. So a Persian word joins
+        // everywhere except the letters that make it
+        // Persian, which is what the 1.1.0 bug report
+        // looked like from the outside.
+        // ==========================================
+
+        // A font with the Arabic presentation forms and none of the Persian
+        // ones. Not a hypothetical: it is what the report was written on.
+        private static bool NoFormsA(char c)
+        {
+            return c < '\uFB50' || c > '\uFBFF';
+        }
+
+        [Test]
+        public void ANeighbourDoesNotReachForALetterTheFontCannotJoin()
+        {
+            // پو. The peh has to be drawn plain, so the waw must be ISOLATED -
+            // not final, whose glyph carries a connecting stroke that would
+            // reach towards the peh and stop in mid-air.
+            //
+            // This is the whole difference between "this font cannot set
+            // Persian" and "this package is broken", and 1.1.0 got it wrong:
+            // it substituted the letter without telling its neighbours.
+            Assert.AreEqual("\u067E\uFEED", DirectArabicShaper.Shape("پو", NoFormsA, null));
+        }
+
+        [Test]
+        public void TheFarsiYehStandsInWithTheDotlessArabicShapes()
+        {
+            // یونیتی. Initial and medial yeh are drawn identically in both
+            // blocks; isolated and final are dotless in Persian, which is
+            // exactly what alef maksura is. So the word joins in full.
+            Assert.AreEqual(
+                "\uFEF3\uFEEE\uFEE7\uFEF4\uFE98\uFEF0",
+                DirectArabicShaper.Shape("یونیتی", NoFormsA, null));
+        }
+
+        [Test]
+        public void KehehStandsInWithKaf()
+        {
+            // کاربر - keheh initial is the same glyph as kaf initial.
+            Assert.AreEqual(
+                "\uFEDB\uFE8E\uFEAD\uFE91\uFEAE",
+                DirectArabicShaper.Shape("کاربر", NoFormsA, null));
+        }
+
+        [Test]
+        public void ALetterWithNoStandInIsLeftAloneAndSoAreItsNeighbours()
+        {
+            // پوشه: the peh alone, then a waw that knows not to reach for it,
+            // then شه joined as normal. Unjoined in one place beats a stroke
+            // hanging off nothing in two.
+            Assert.AreEqual(
+                "\u067E\uFEED\uFEB7\uFEEA",
+                DirectArabicShaper.Shape("پوشه", NoFormsA, null));
+        }
+
+        [Test]
+        public void CanJoinReportsWhatTheFontCanActuallyDo()
+        {
+            Assert.IsTrue(DirectArabicShaper.CanJoin('ر', NoFormsA));
+            Assert.IsTrue(DirectArabicShaper.CanJoin('ی', NoFormsA), "ی has a stand-in every Arabic font carries.");
+            Assert.IsTrue(DirectArabicShaper.CanJoin('ک', NoFormsA), "So does ک.");
+
+            Assert.IsFalse(DirectArabicShaper.CanJoin('پ', NoFormsA),
+                "peh has no stand-in: a beh would be a different letter.");
+            Assert.IsFalse(DirectArabicShaper.CanJoin('گ', NoFormsA));
+
+            Assert.IsTrue(DirectArabicShaper.CanJoin('ی', null), "With no probe, the table is the answer.");
+            Assert.IsFalse(DirectArabicShaper.CanJoin('A', null), "Latin joins nothing.");
+        }
+
+        [Test]
+        public void AFontWithBothBlocksStillUsesThePersianOnes()
+        {
+            // The stand-ins are a fallback, not a preference: a font that has
+            // the real forms gets the real forms.
+            Assert.AreEqual(
+                "\uFBFE\uFEEE\uFEE7\uFBFF\uFE98\uFBFD",
+                DirectArabicShaper.Shape("یونیتی", c => true, null));
+        }
+
         [Test]
         public void TheProbeIsOnlyAskedAboutFormsItWouldDraw()
         {

@@ -38,7 +38,7 @@ namespace UnityDirectTMP
         // ==========================================
         public const string ToolName = "Unity DirectTMP";
         public const string ShortName = "DirectTMP";
-        public const string Version = "1.1.0";
+        public const string Version = "1.1.1";
         public const string Author = "AmirCollider";
         public const string GithubUrl = "https://github.com/AmirCollider/UnityDirectTMP";
 

@@ -113,10 +113,15 @@ What that gets you:
   reordered on its own.
 - **Rich text survives.** `<b>` and `<color>` move with the words they wrap
   and swap ends when the span turns around; letters still join across a tag.
-- **Fonts without the presentation forms degrade, rather than break.**
-  Vazirmatn, Noto Sans Arabic and most modern Persian faces carry the plain
-  letters and their OpenType rules and nothing at U+FE70. Every form is
-  checked against the font first, and falls back to the letter itself.
+- **The font is asked before every shape is used.** Persian's own letters
+  (`پ چ ژ ک گ ی`) shape into a *different* Unicode block (U+FB50–FBFF) from
+  the rest of the alphabet (U+FE70–FEFF), and plenty of fonts — Segoe UI
+  among them — carry one block in full and none of the other. So each form is
+  checked against the font: `ک` and `ی` are stood in for with Arabic shapes
+  that are the same drawing (kaf, and dotless alef maksura), and a letter with
+  no stand-in is drawn plainly *and its neighbours are told*, so nothing draws
+  a connecting stroke into a letter that has none. Direct Text names the
+  letters a font cannot join, in its Inspector and once in the console.
 - **`label.text` is still your string.** The work happens in TextMeshPro's own
   `textPreprocessor`, so what you set is what you read back — and anything
   that writes to a label is covered without knowing the component exists: a
@@ -458,10 +463,14 @@ label.text = "سلام دنیا";   // 保存順のまま、この文字列の�
 - **リッチテキストが壊れません。** `<b>` や `<color>` は囲んでいる語と一緒に
   移動し、範囲が反転すれば開始タグと終了タグも入れ替わります。タグをまたいで
   文字も接続します。
-- **表示形を持たないフォントでも豆腐になりません。** Vazirmatn や Noto Sans
-  Arabic など最近のペルシア語書体は、素の文字と OpenType の規則だけを持ち
-  U+FE70 には何もありません。各表示形はフォントに存在するか確認され、無ければ
-  元の文字へフォールバックします。
+- **使う字形は必ずフォントに確認します。** ペルシア語独自の文字
+  (`پ چ ژ ک گ ی`) は、他の文字(U+FE70–FEFF)とは**別の**ブロック
+  (U+FB50–FBFF)にあり、一方だけを収録したフォント(Segoe UI もそうです)が
+  珍しくありません。そこで字形ごとに存在を確認し、`ک` と `ی` は同じ字形の
+  アラビア文字(kaf、点のない alef maksura)で代替します。代替のない文字は
+  単独字形で描き、**隣の文字にもそれを伝える**ので、接続先のない文字へ
+  ストロークが伸びることはありません。接続できない文字は Direct Text が
+  インスペクターとコンソールで名指しします。
 - **`label.text` はあなたの文字列のままです。** 処理は TextMeshPro 自身の
   `textPreprocessor` で行われるので、設定した文字列がそのまま読み出せます。
   ラベルに書き込むものはすべて自動的に対象になります — `TMP_Dropdown` の
@@ -695,10 +704,14 @@ label.text = "سلام دنیا";   // دقیقاً همین می‌مونه، �
 - **تگ‌های ریچ‌تکست سالم می‌مونن.** `<b>` و `<color>` همراه کلمه‌ای که دورشون
   گرفته جابه‌جا می‌شن و اگه اون تیکه برعکس بشه، تگ باز و بسته هم جاشون عوض
   می‌شه. حروف از دو طرف تگ هم به هم می‌چسبن.
-- **فونت‌های بدون شکل‌های نمایشی دیگه مربع نمی‌دن.** وزیرمتن، Noto Sans Arabic
-  و بیشتر فونت‌های امروزی فارسی فقط حروف ساده و قواعد OpenType رو دارن و توی
-  U+FE70 هیچی ندارن. حالا هر شکل اول از فونت پرسیده می‌شه و اگه نبود، به خود
-  حرف برمی‌گرده.
+- **هر شکل، اول از فونت پرسیده می‌شه.** حروفی که فارسی به الفبای عربی اضافه
+  کرده (`پ چ ژ ک گ ی`) توی یه بلوک یونیکد **جدا** (U+FB50–FBFF) از بقیه‌ی
+  حروف (U+FE70–FEFF) هستن، و خیلی از فونت‌ها — از جمله Segoe UI — یکی رو کامل
+  دارن و اون یکی رو اصلاً ندارن. برای همین وجود هر شکل از فونت پرسیده می‌شه:
+  برای `ک` و `ی` شکل‌های عربیِ هم‌شکل جایگزین می‌شن (کافِ عربی، و الفِ مقصوره‌ی
+  بی‌نقطه)، و حرفی که جایگزین نداره جدا نوشته می‌شه و **به همسایه‌هاش هم گفته
+  می‌شه**، تا هیچ حرفی دنباله‌ی اتصالش رو به هوا نکشه. Direct Text حروفی که
+  فونت نمی‌تونه بچسبونه رو توی اینسپکتور و یه بار توی کنسول اسم می‌بره.
 - **`label.text` هنوز همون رشته‌ی خودته.** کار توی `textPreprocessor` خود
   TextMeshPro انجام می‌شه، پس هرچی ست کردی همون رو پس می‌گیری — و هر چیزی که
   توی لیبل می‌نویسه بدون اینکه از این کامپوننت خبر داشته باشه پوشش داده می‌شه:

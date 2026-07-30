@@ -20,6 +20,46 @@ roadmap in the [README](README.md#-roadmap).
 - Colour & emoji fonts (COLR / CBDT).
 - Variable font axes — weight, width, slant.
 
+## [1.1.1] - 2026-07-30
+
+The letters Persian adds to the Arabic alphabet are in a different Unicode
+block, and fonts do not treat the two alike.
+
+پ چ ژ ک گ ی shape into U+FB50–FBFF. Every other letter — ر و ه س ت ن and the
+rest — shapes into U+FE70–FEFF. A font can carry the second block in full and
+none of the first, and Segoe UI, which is on every Windows machine, does
+exactly that. 1.1.0 asked the font for each form and fell back to the plain
+letter when it was missing, which was right as far as it went: no boxes.
+
+But it substituted the letter without telling its NEIGHBOURS, and a neighbour
+that still thinks it is joined draws a connecting stroke into a letter that
+has none. So `یونیتی` came out as a plain ی, a waw with a tail reaching
+towards nothing, a joined ن, another plain ی — six letters and four loose
+strokes. Every Persian word with a پ or a ی in it looked shattered, and the
+letter that got the blame was, again, ی.
+
+### Fixed
+- **A letter the font cannot join now joins nothing.** The joining rules ask
+  the font first, so the letter before a plain پ takes its isolated form
+  instead of reaching for a connection that will not be there. Unjoined in
+  one place, rather than broken in three.
+- **ک and ی are stood in for.** Both have shapes in the Arabic block that are
+  the same drawing, not merely a similar letter: keheh initial and medial are
+  kaf initial and medial, and Persian's dotless isolated and final yeh is
+  exactly alef maksura. So on a font like Segoe UI, `یونیتی` and `کاربر` now
+  join in full — and a font that has the real Persian forms still gets them.
+  پ چ ژ گ have no such stand-in (a beh is not a peh) and stay as they are.
+- **The font says so out loud.** `DirectText` names the letters a font cannot
+  join, once per font, in the console and in its Inspector, in all three
+  languages — because after everything else is right, this is the one thing
+  left that still looks like a bug and is not one.
+
+### Added
+- `DirectArabicShaper.CanJoin(letter, hasGlyph)` — ask a font whether it can
+  set a letter joined up, before blaming the shaper.
+- Six more tests in `DirectRichTextTests` over the missing block, the
+  stand-ins, and the neighbour rule.
+
 ## [1.1.0] - 2026-07-30
 
 The glyphs were there and the words were still wrong.

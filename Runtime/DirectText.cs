@@ -165,6 +165,15 @@ namespace UnityDirectTMP
         // rest of the session.
         private const int MeasureRetries = 3;
 
+        // The letters Persian adds to the Arabic alphabet. They shape into a
+        // different Unicode block from the rest of the alphabet, and plenty
+        // of fonts carry one block and not the other - so these six are the
+        // ones worth checking, and the ones a reader notices.
+        private static readonly char[] PersianLetters = { 'پ', 'چ', 'ژ', 'گ', 'ک', 'ی' };
+
+        // One warning per font, not per label: a Persian screen has fifty.
+        private static readonly HashSet<string> s_warned = new HashSet<string>();
+
         // ==========================================
         // Serialized configuration
         // ==========================================
@@ -198,6 +207,7 @@ namespace UnityDirectTMP
         [NonSerialized] private bool _skipped;
         [NonSerialized] private int _retries;
         [NonSerialized] private bool _realigned;
+        [NonSerialized] private string _unjoined;
         [NonSerialized] private HorizontalAlignmentOptions _alignmentBefore;
 
         // ==========================================
@@ -431,6 +441,8 @@ namespace UnityDirectTMP
                 }
 
                 Func<char, bool> probe = substituteMissingGlyphs ? _probe : null;
+                ReportUnjoinableLetters(probe);
+
                 string shaped = DirectRichText.Shape(source, probe);
                 string prepared = null;
 
@@ -578,6 +590,45 @@ namespace UnityDirectTMP
         }
 
         // ==========================================
+        // Which Persian letters this font cannot join.
+        //
+        // پ چ ژ ک گ ی shape into U+FB50..FBFF and the
+        // rest of the alphabet shapes into U+FE70..FEFF.
+        // A font can carry the second block in full and
+        // none of the first - Segoe UI does, and it is on
+        // every Windows machine - so a Persian word comes
+        // out joined except for the letters that make it
+        // Persian. ک and ی have stand-ins that any Arabic
+        // font has; پ چ ژ گ do not, and the honest thing
+        // is to say so rather than let somebody conclude
+        // the package is broken.
+        // ==========================================
+        private void ReportUnjoinableLetters(Func<char, bool> probe)
+        {
+            _unjoined = null;
+            if (probe == null || _font == null) { return; }
+
+            for (int i = 0; i < PersianLetters.Length; i++)
+            {
+                char letter = PersianLetters[i];
+                if (DirectArabicShaper.CanJoin(letter, probe)) { continue; }
+
+                _unjoined = _unjoined == null ? letter.ToString() : _unjoined + " " + letter;
+            }
+
+            if (_unjoined == null) { return; }
+
+            string key = _font.name + ":" + _unjoined;
+            if (!s_warned.Add(key)) { return; }
+
+            DirectTMPLog.Warn(
+                $"'{_font.name}' has no joined shapes for {_unjoined} — those letters will be drawn on their own. "
+                + "The font carries the Arabic presentation forms (U+FE70–FEFF) but not the Persian ones (U+FB50–FBFF). "
+                + "Pick a font that has both if you are setting Persian.",
+                this);
+        }
+
+        // ==========================================
         // Can this font draw that form?
         //
         // Cached per label, because the answer is a
@@ -602,5 +653,8 @@ namespace UnityDirectTMP
         // ==========================================
         internal bool EditorSkipped => _skipped;
         internal bool EditorWrapped => _wrapped;
+
+        /// <summary>The Persian letters this label's font cannot join, or null.</summary>
+        internal string EditorUnjoinedLetters => _unjoined;
     }
 }

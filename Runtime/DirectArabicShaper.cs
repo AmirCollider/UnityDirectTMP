@@ -208,6 +208,59 @@ namespace UnityDirectTMP
         };
 
         // ==========================================
+        // Stand-ins.
+        //
+        // The Persian letters live in a DIFFERENT Unicode
+        // block from the Arabic ones: پ چ ژ ک گ ی shape
+        // into U+FB50..FBFF (Presentation Forms-A), while
+        // ر و ه س ت ن and the rest of the alphabet shape
+        // into U+FE70..FEFF (Forms-B). Fonts do not treat
+        // those two blocks alike. Segoe UI - the font on
+        // every Windows machine, and the one in the bug
+        // report this table exists for - carries Forms-B
+        // and not Forms-A, so exactly the six Persian
+        // letters come back unjoined while every other
+        // letter in the word joins correctly. That is
+        // what "the ی is broken" looks like from the
+        // outside.
+        //
+        // Two of the six have a stand-in in Forms-B that
+        // is the SAME SHAPE, not merely a similar letter:
+        //
+        //   ی  initial and medial are drawn identically
+        //      to Arabic yeh. Isolated and final are
+        //      dotless, which is alef maksura - the very
+        //      glyph Persian expects.
+        //   ک  initial and medial are drawn identically
+        //      to Arabic kaf; isolated and final differ
+        //      by the small stroke inside, which every
+        //      Persian reader reads as a kaf anyway. It
+        //      is how Persian was set on every system
+        //      that predates OpenType.
+        //
+        // پ چ ژ گ have no stand-in - substituting beh for
+        // peh would change the word - so they stay as
+        // they are, and the joining rules below make sure
+        // their neighbours do not reach for a connection
+        // that will not be there.
+        // ==========================================
+        private static readonly Dictionary<char, char[]> Alternates = new Dictionary<char, char[]>
+        {
+            // ی farsi yeh -> alef maksura (dotless) isolated and final,
+            //                yeh initial and medial, which are the same glyph.
+            { 'ی', new[] { 'ﻯ', 'ﻰ', 'ﻳ', 'ﻴ' } },
+
+            // ک keheh -> Arabic kaf
+            { 'ک', new[] { 'ﻙ', 'ﻚ', 'ﻛ', 'ﻜ' } },
+
+            // ہ heh goal -> heh
+            { 'ہ', new[] { 'ﻩ', 'ﻪ', 'ﻫ', 'ﻬ' } },
+
+            // ٱ alef wasla -> alef
+            { 'ٱ', new[] { 'ﺍ', 'ﺎ', '\0'   , '\0'    } },
+        };
+
+        // ==========================================
         // Lam-alef.
         //
         // Keyed by the alef that follows a lam, each
@@ -337,16 +390,20 @@ namespace UnityDirectTMP
                     continue;
                 }
 
-                bool joinsBefore = Offers(PreviousJoining(text, i));
+                // Which set of shapes this font can actually draw this letter
+                // with. Null means none of them, and the letter goes out as
+                // it came in.
+                char[] use = FormsToUse(c, forms, hasGlyph);
 
                 // لا, before anything else: two codepoints, one glyph, and
                 // treating them separately is the single most recognisable
                 // way to get Arabic wrong.
                 if (c == Lam
+                    && use != null
                     && i + 1 < text.Length
                     && LamAlef.TryGetValue(text[i + 1], out char[] ligature))
                 {
-                    char joined = joinsBefore ? ligature[1] : ligature[0];
+                    char joined = Offers(PreviousJoining(text, i, hasGlyph)) ? ligature[1] : ligature[0];
 
                     if (hasGlyph == null || hasGlyph(joined))
                     {
@@ -356,45 +413,81 @@ namespace UnityDirectTMP
                         continue;
                     }
 
-                    // No ligature glyph in this font. A lam and an alef drawn
-                    // in their own joining forms is not the ligature a reader
-                    // expects, but it is the word, and it is what a font
-                    // without the ligature can draw.
-                    char alef = text[i + 1];
+                    // No ligature glyph in this font. Falling through shapes
+                    // the lam and the alef as ordinary neighbours, which is
+                    // not the ligature a reader expects but is the word.
+                }
 
-                    output.Append(Supported(Pick(forms, joinsBefore, true), forms, c, hasGlyph));
+                if (use == null)
+                {
+                    // The font has no joined shapes for this letter - the
+                    // Persian letters live in a block plenty of fonts leave
+                    // out. It goes out as itself, and the joining rules have
+                    // already told its neighbours not to reach for it.
+                    output.Append(c);
                     if (sourceIndices != null) { sourceIndices.Add(i); }
-
-                    output.Append(Forms.TryGetValue(alef, out char[] alefForms)
-                        ? Supported(Pick(alefForms, true, false), alefForms, alef, hasGlyph)
-                        : alef);
-                    if (sourceIndices != null) { sourceIndices.Add(i + 1); }
-
-                    i++;
                     continue;
                 }
 
-                bool linkBefore = joinsBefore && Accepts(JoiningOf(c));
-                bool linkAfter = Offers(JoiningOf(c)) && Accepts(NextJoining(text, i));
+                bool linkBefore = Offers(PreviousJoining(text, i, hasGlyph)) && Accepts(JoiningOf(c));
+                bool linkAfter = Offers(JoiningOf(c)) && Accepts(NextJoining(text, i, hasGlyph));
 
-                output.Append(Supported(Pick(forms, linkBefore, linkAfter), forms, c, hasGlyph));
+                output.Append(Pick(use, linkBefore, linkAfter));
                 if (sourceIndices != null) { sourceIndices.Add(i); }
             }
 
             return output.ToString();
         }
 
-        // The chosen form, if the font has it; the isolated form, if it has
-        // that; the letter as it was stored, which the font demonstrably has
-        // because it was drawing it before this file was involved.
-        private static char Supported(char form, char[] forms, char original, System.Func<char, bool> hasGlyph)
+        // ==========================================
+        // Which shapes this font can draw this letter
+        // with: its own, its stand-in's, or neither.
+        //
+        // All four forms are required, not the one being
+        // asked for. A letter drawn from two different
+        // sets in two different words is worse than a
+        // letter drawn plainly in both, and a font with
+        // half a block is a font to stay out of.
+        // ==========================================
+        private static char[] FormsToUse(char c, char[] forms, System.Func<char, bool> hasGlyph)
         {
-            if (form == '\0') { return original; }
-            if (hasGlyph == null || hasGlyph(form)) { return form; }
+            if (hasGlyph == null) { return forms; }
+            if (Complete(forms, hasGlyph)) { return forms; }
 
-            if (forms != null && forms[0] != '\0' && forms[0] != form && hasGlyph(forms[0])) { return forms[0]; }
+            if (Alternates.TryGetValue(c, out char[] alternate) && Complete(alternate, hasGlyph))
+            {
+                return alternate;
+            }
 
-            return original;
+            return null;
+        }
+
+        private static bool Complete(char[] forms, System.Func<char, bool> hasGlyph)
+        {
+            for (int i = 0; i < forms.Length; i++)
+            {
+                if (forms[i] != '\0' && !hasGlyph(forms[i])) { return false; }
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// True when a font can draw this letter joined up - in its own
+        /// presentation forms, or in the ones this file will stand in for
+        /// them.
+        ///
+        /// Worth asking before blaming the shaper. The Persian letters
+        /// (پ چ ژ ک گ ی) shape into U+FB50..FBFF, a block a great many fonts
+        /// leave out while carrying the Arabic one at U+FE70..FEFF in full -
+        /// so a font can join every letter of a Persian word except the ones
+        /// that make it Persian.
+        /// </summary>
+        public static bool CanJoin(char letter, System.Func<char, bool> hasGlyph)
+        {
+            if (!Forms.TryGetValue(letter, out char[] forms)) { return false; }
+            if (hasGlyph == null) { return true; }
+
+            return FormsToUse(letter, forms, hasGlyph) != null;
         }
 
         private static void FillIdentity(List<int> sourceIndices, string text)
@@ -431,24 +524,57 @@ namespace UnityDirectTMP
         // Marks are skipped when looking for a neighbour: a fatha sitting over
         // a letter is drawn above the join, not in it, so a word with vowel
         // marks has to join exactly as it does without them.
-        private static DirectJoining PreviousJoining(string text, int index)
+        private static DirectJoining PreviousJoining(string text, int index, System.Func<char, bool> hasGlyph)
         {
             for (int i = index - 1; i >= 0; i--)
             {
-                DirectJoining joining = JoiningOf(text[i]);
+                DirectJoining joining = EffectiveJoining(text[i], hasGlyph);
                 if (joining != DirectJoining.Transparent) { return joining; }
             }
             return DirectJoining.None;
         }
 
-        private static DirectJoining NextJoining(string text, int index)
+        private static DirectJoining NextJoining(string text, int index, System.Func<char, bool> hasGlyph)
         {
             for (int i = index + 1; i < text.Length; i++)
             {
-                DirectJoining joining = JoiningOf(text[i]);
+                DirectJoining joining = EffectiveJoining(text[i], hasGlyph);
                 if (joining != DirectJoining.Transparent) { return joining; }
             }
             return DirectJoining.None;
+        }
+
+        // ==========================================
+        // What a letter joins like ON THIS FONT.
+        //
+        // A letter the font can only draw as itself
+        // connects to nothing: its stored glyph has no
+        // entry or exit stroke. A neighbour that joined
+        // to it anyway would draw a connector reaching
+        // into empty space - and a word of correctly
+        // joined letters with two strokes hanging off
+        // nothing reads worse than a word of plain ones.
+        //
+        // This is the difference between "the font cannot
+        // set Persian" and "the plugin is broken", and
+        // 1.1.0 shipped the second because it substituted
+        // the letter without telling its neighbours.
+        // ==========================================
+        private static DirectJoining EffectiveJoining(char c, System.Func<char, bool> hasGlyph)
+        {
+            DirectJoining joining = JoiningOf(c);
+
+            if (hasGlyph == null
+                || joining == DirectJoining.None
+                || joining == DirectJoining.Transparent
+                || joining == DirectJoining.Causing)
+            {
+                return joining;
+            }
+
+            return Forms.TryGetValue(c, out char[] forms) && FormsToUse(c, forms, hasGlyph) != null
+                ? joining
+                : DirectJoining.None;
         }
 
         // ==========================================

@@ -61,6 +61,20 @@ namespace UnityDirectTMP.Editor
                     DirectTMPBrand.NoteLevel.Info);
             }
 
+            string unjoined = directText.EditorUnjoinedLetters;
+            if (!string.IsNullOrEmpty(unjoined))
+            {
+                // Not a failure of the shaping - a fact about the font, and
+                // the one thing that still looks like a bug after everything
+                // else is right.
+                DirectTMPBrand.Note(
+                    DirectTMPText.Raw(
+                        $"This font has no joined shapes for {unjoined}. Persian adds those letters to the Arabic alphabet and they live in a different Unicode block (U+FB50–FBFF) from the rest of it (U+FE70–FEFF) — a font can carry one block in full and none of the other, which is why the rest of the word joins and these do not. They are drawn on their own; ک and ی are stood in for automatically. To join everything, use a font that carries both blocks.",
+                        $"このフォントには {unjoined} の接続形がありません。ペルシア語がアラビア文字に追加したこれらの文字は、他の文字(U+FE70–FEFF)とは別のブロック(U+FB50–FBFF)にあります。一方のブロックだけを収録したフォントは珍しくなく、そのため語の他の部分は接続してこれらだけが接続しません。該当文字は単独字形で描画されます(ک と ی は自動で代替)。すべて接続させるには、両方のブロックを持つフォントを使ってください。",
+                        $"این فونت شکلِ چسبیده‌ی {unjoined} رو نداره. این حروف رو فارسی به الفبای عربی اضافه کرده و توی یه بلوک یونیکد جدا (U+FB50–FBFF) از بقیه‌ی حروف (U+FE70–FEFF) هستن — خیلی از فونت‌ها یکی از این دو بلوک رو کامل دارن و اون یکی رو اصلاً ندارن، برای همین بقیه‌ی کلمه می‌چسبه و همین چند حرف نه. این‌ها جدا نوشته می‌شن (برای ک و ی خودکار جایگزین گذاشته می‌شه). اگه می‌خوای همه‌چیز بچسبه، فونتی بردار که هر دو بلوک رو داشته باشه."),
+                    DirectTMPBrand.NoteLevel.Warning);
+            }
+
             serializedObject.Update();
 
             EditorGUILayout.PropertyField(direction, DirectTMPText.C(
