@@ -81,12 +81,11 @@ namespace UnityDirectTMP.Editor
             DirectTMPBrand.SectionTitle(DirectTMPText.L(
                 "Default rasterization", "既定のラスタライズ設定", "تنظیمات پیش‌فرض رسترایز"));
 
-            EditorGUILayout.HelpBox(
-                DirectTMPText.L(
-                    "These are stamped onto the Direct Fonts the batch converter creates, and used as the starting point when you add a Direct Font by hand. A label can still override them for itself.",
-                    "一括変換で作成される Direct Font に適用され、手動で追加したときの初期値にもなります。ラベルごとに個別に上書きすることもできます。",
-                    "این‌ها روی Direct Font هایی که تبدیل‌کننده‌ی گروهی می‌سازه حک می‌شن، و وقتی دستی یه Direct Font اضافه می‌کنی نقطه‌ی شروع هستن. هر لیبل می‌تونه برای خودش این‌ها رو بازنویسی کنه."),
-                MessageType.None);
+            DirectTMPBrand.Note(
+                "These are stamped onto the Direct Fonts the batch converter creates, and used as the starting point when you add a Direct Font by hand. A label can still override them for itself.",
+                "一括変換で作成される Direct Font に適用され、手動で追加したときの初期値にもなります。ラベルごとに個別に上書きすることもできます。",
+                "این‌ها روی Direct Font هایی که تبدیل‌کننده‌ی گروهی می‌سازه حک می‌شن، و وقتی دستی یه Direct Font اضافه می‌کنی نقطه‌ی شروع هستن. هر لیبل می‌تونه برای خودش این‌ها رو بازنویسی کنه.",
+                DirectTMPBrand.NoteLevel.Plain);
 
             DirectFontSettings current = DirectTMPSettings.CurrentSettings;
 
@@ -151,8 +150,9 @@ namespace UnityDirectTMP.Editor
             {
                 EditorGUILayout.LabelField(
                     DirectTMPText.L("Editor font", "エディタのフォント", "فونت ادیتور"),
+                    DirectTMPBrand.Line,
                     GUILayout.Width(EditorGUIUtility.labelWidth));
-                EditorGUILayout.LabelField(plan.Describe(), EditorStyles.boldLabel);
+                EditorGUILayout.LabelField(DirectTMPText.Show(plan.Describe()), DirectTMPBrand.BoldLine);
             }
 
             using (new EditorGUILayout.HorizontalScope())
@@ -260,10 +260,11 @@ namespace UnityDirectTMP.Editor
             {
                 EditorGUILayout.LabelField(
                     DirectTMPText.Word("language"),
+                    DirectTMPBrand.Line,
                     GUILayout.Width(EditorGUIUtility.labelWidth));
 
                 int index = DirectTMPText.IndexOf(DirectTMPText.Current);
-                int picked = EditorGUILayout.Popup(index, DirectTMPText.Labels, GUILayout.Width(140));
+                int picked = EditorGUILayout.Popup(index, DirectTMPText.DisplayLabels, GUILayout.Width(140));
                 if (picked != index)
                 {
                     DirectTMPText.Current = DirectTMPText.Codes[picked];

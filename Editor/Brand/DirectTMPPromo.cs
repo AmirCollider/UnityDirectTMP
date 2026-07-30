@@ -40,6 +40,10 @@ namespace UnityDirectTMP.Editor
 {
     internal static class DirectTMPPromo
     {
+        // The strip's mark column, its action column, the card's padding and
+        // the host window's gutters.
+        private const float PromoInset = 22f + 86f + 22f + 40f;
+
         /// <summary>
         /// Draws the promo strip, unless it has been dismissed. Safe to call
         /// from any window's footer.
@@ -56,20 +60,20 @@ namespace UnityDirectTMP.Editor
                 using (new EditorGUILayout.VerticalScope())
                 {
                     GUILayout.Label(
-                        string.Format(
-                            DirectTMPText.L(
-                                "Also from {0}: {1}",
-                                "{0} の別ツール: {1}",
-                                "از همین سازنده ({0}): {1}"),
+                        DirectTMPText.F(
+                            "Also from {0}: {1}",
+                            "{0} の別ツール: {1}",
+                            "از همین سازنده ({0}): {1}",
                             DirectTMPConstants.Author, DirectTMPConstants.SiblingToolName),
-                        EditorStyles.boldLabel);
+                        DirectTMPBrand.BoldLine);
 
-                    GUILayout.Label(
-                        DirectTMPText.L(
+                    DirectTMPBrand.Body(
+                        DirectTMPText.Raw(
                             "Snaps a whole Unity project into an offline website — every Scene, every Component, every field — for humans and AI alike.",
                             "Unity プロジェクト全体をオフラインの Web サイトに。全 Scene・全 Component・全フィールドを、人にも AI にも読める形で。",
                             "کل پروژه‌ی یونیتی رو می‌کنه یه وب‌سایت آفلاین — هر سین، هر کامپوننت، هر فیلد — هم برای آدم‌ها هم برای هوش مصنوعی."),
-                        DirectTMPBrand.Subtitle);
+                        DirectTMPBrand.Subtitle,
+                        PromoInset);
                 }
 
                 using (new EditorGUILayout.VerticalScope(GUILayout.Width(86)))
@@ -95,12 +99,13 @@ namespace UnityDirectTMP.Editor
         {
             using (new EditorGUILayout.HorizontalScope())
             {
-                GUILayout.Label(
-                    DirectTMPText.L(
+                DirectTMPBrand.Body(
+                    DirectTMPText.Raw(
                         "Free and MIT-licensed. A star on the repo is the whole price.",
                         "無料・MIT ライセンスです。リポジトリへの ⭐ が唯一の対価です。",
                         "رایگان و با لایسنس MIT. تنها هزینه‌ش یه ⭐ روی ریپازیتوریه."),
-                    DirectTMPBrand.Subtitle);
+                    DirectTMPBrand.Subtitle,
+                    PromoInset + 96f);
 
                 if (GUILayout.Button(DirectTMPText.L("Star it", "スターを付ける", "ستاره بده"), EditorStyles.miniButton, GUILayout.Width(96)))
                 {

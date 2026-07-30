@@ -98,18 +98,40 @@ namespace UnityDirectTMP.Editor
         private static GUIStyle s_badge;
         private static GUIStyle s_card;
         private static GUIStyle s_wordmark;
+        private static GUIStyle s_body;
+        private static GUIStyle s_bold;
+        private static GUIStyle s_line;
+
+        // ==========================================
+        // Alignment follows the language.
+        //
+        // A Persian paragraph left-aligned inside an
+        // English layout is legible and still looks
+        // wrong - the ragged edge lands on the side the
+        // eye starts from. Every style the tool owns
+        // flips; Unity's own EditorStyles do not, which
+        // is why the windows use these for anything
+        // longer than a word.
+        //
+        // The styles are cached, so a language switch
+        // has to drop them - DirectTMPMenu and the two
+        // language dropdowns all call InvalidateStyles.
+        // ==========================================
+        private static bool Rtl => DirectTMPText.IsRightToLeft;
+
+        private static TextAnchor Leading(TextAnchor ltr, TextAnchor rtl) => Rtl ? rtl : ltr;
 
         public static GUIStyle Title => s_title ?? (s_title = new GUIStyle(EditorStyles.boldLabel)
         {
             fontSize = 16,
-            alignment = TextAnchor.MiddleLeft,
+            alignment = Leading(TextAnchor.MiddleLeft, TextAnchor.MiddleRight),
             margin = new RectOffset(0, 0, 0, 0)
         });
 
         public static GUIStyle Wordmark => s_wordmark ?? (s_wordmark = new GUIStyle(EditorStyles.boldLabel)
         {
             fontSize = 18,
-            alignment = TextAnchor.LowerLeft,
+            alignment = Leading(TextAnchor.LowerLeft, TextAnchor.LowerRight),
             padding = new RectOffset(0, 0, 0, 0),
             normal = { textColor = EditorGUIUtility.isProSkin ? Lift(Ink, 0.42f) : InkDeep }
         });
@@ -117,14 +139,34 @@ namespace UnityDirectTMP.Editor
         public static GUIStyle Subtitle => s_subtitle ?? (s_subtitle = new GUIStyle(EditorStyles.miniLabel)
         {
             wordWrap = true,
-            alignment = TextAnchor.UpperLeft,
+            alignment = Leading(TextAnchor.UpperLeft, TextAnchor.UpperRight),
             normal = { textColor = TextDim }
         });
 
         public static GUIStyle Section => s_section ?? (s_section = new GUIStyle(EditorStyles.boldLabel)
         {
             fontSize = 12,
+            alignment = Leading(TextAnchor.MiddleLeft, TextAnchor.MiddleRight),
             margin = new RectOffset(0, 0, 10, 4)
+        });
+
+        /// <summary>A wrapped paragraph. Drawn through <see cref="Body(string,float)"/>, never directly.</summary>
+        public static GUIStyle BodyText => s_body ?? (s_body = new GUIStyle(EditorStyles.label)
+        {
+            wordWrap = true,
+            alignment = Leading(TextAnchor.UpperLeft, TextAnchor.UpperRight)
+        });
+
+        /// <summary>A bold single line that follows the reading direction.</summary>
+        public static GUIStyle BoldLine => s_bold ?? (s_bold = new GUIStyle(EditorStyles.boldLabel)
+        {
+            alignment = Leading(TextAnchor.MiddleLeft, TextAnchor.MiddleRight)
+        });
+
+        /// <summary>A plain single line that follows the reading direction.</summary>
+        public static GUIStyle Line => s_line ?? (s_line = new GUIStyle(EditorStyles.label)
+        {
+            alignment = Leading(TextAnchor.MiddleLeft, TextAnchor.MiddleRight)
         });
 
         public static GUIStyle Badge => s_badge ?? (s_badge = new GUIStyle(EditorStyles.miniLabel)
@@ -153,6 +195,9 @@ namespace UnityDirectTMP.Editor
             s_badge = null;
             s_card = null;
             s_wordmark = null;
+            s_body = null;
+            s_bold = null;
+            s_line = null;
         }
 
         // ==========================================
@@ -175,29 +220,201 @@ namespace UnityDirectTMP.Editor
             EditorGUI.DrawRect(band, Surface);
             EditorGUI.DrawRect(new Rect(band.x, band.yMax - 1f, band.width, 1f), Border);
 
-            // A thin accent stripe along the leading edge - the one place the
-            // brand colour appears at full strength, where it cannot fight
-            // with text.
-            EditorGUI.DrawRect(new Rect(band.x, band.y, 3f, band.height), Accent);
+            // In a right-to-left interface the whole band mirrors: the accent
+            // stripe, the mascot and the text all move to the side the eye
+            // starts from, and the version - which is the one thing that is
+            // never translated - takes the other end. Reading order is a
+            // layout property, not a text property, and a header that ignores
+            // it is the tell that a translation was bolted on.
+            bool rtl = Rtl;
 
-            var mascot = new Rect(band.x + 13f, band.y + 7f, 40f, 40f);
+            float stripeX = rtl ? band.xMax - 3f : band.x;
+            EditorGUI.DrawRect(new Rect(stripeX, band.y, 3f, band.height), Accent);
+
+            var mascot = rtl
+                ? new Rect(band.xMax - 53f, band.y + 7f, 40f, 40f)
+                : new Rect(band.x + 13f, band.y + 7f, 40f, 40f);
             GUI.DrawTexture(mascot, Mascot, ScaleMode.ScaleToFit);
 
-            var titleRect = new Rect(mascot.xMax + 11f, band.y + 6f, band.width - mascot.xMax - 20f, 24f);
+            const float versionWidth = 74f;
+            float textWidth = band.width - 64f - versionWidth - 10f;
+            float textX = rtl ? band.x + versionWidth + 10f : mascot.xMax + 11f;
+
+            var titleRect = new Rect(textX, band.y + 6f, Mathf.Max(40f, textWidth), 24f);
             GUI.Label(titleRect, title, Wordmark);
 
             var subRect = new Rect(titleRect.x, titleRect.yMax + 1f, titleRect.width, 22f);
             GUI.Label(subRect, subtitle, Subtitle);
 
-            var versionRect = new Rect(band.xMax - 74f, band.y + 8f, 64f, 14f);
+            var versionRect = rtl
+                ? new Rect(band.x + 10f, band.y + 8f, 64f, 14f)
+                : new Rect(band.xMax - versionWidth, band.y + 8f, 64f, 14f);
+
             var version = new GUIStyle(EditorStyles.miniLabel)
             {
-                alignment = TextAnchor.MiddleRight,
+                alignment = rtl ? TextAnchor.MiddleLeft : TextAnchor.MiddleRight,
                 normal = { textColor = TextDim }
             };
             GUI.Label(versionRect, "v" + DirectTMPConstants.Version, version);
 
             GUILayout.Space(6);
+        }
+
+        // ==========================================
+        // Body
+        //
+        // A wrapped paragraph, in the reader's script
+        // and the reader's direction.
+        //
+        // IMGUI cannot wrap right-to-left text: it is
+        // handed a string that has already been turned
+        // around for display, so where it chooses to
+        // break the line is where the paragraph breaks
+        // BACKWARDS, and three lines come out in reverse
+        // order. DirectTMPText.Wrap breaks the text
+        // first, while it is still in reading order, and
+        // hands IMGUI lines that need no wrapping.
+        //
+        // Which means the width has to be known before
+        // the text is measured, and IMGUI does not offer
+        // it during the layout pass. currentViewWidth
+        // minus an inset is the honest answer, and the
+        // inset errs generous on purpose: a line broken
+        // slightly early costs nothing, and a line
+        // broken slightly late gets re-broken by IMGUI
+        // in the wrong place.
+        // ==========================================
+        /// <summary>The default room a panel's own padding and scrollbar take.</summary>
+        public const float BodyInset = 72f;
+
+        /// <summary>
+        /// Draws a localised paragraph. This is the overload to reach for:
+        /// it picks the language itself, so the text is still in logical order
+        /// when it is broken into lines.
+        /// </summary>
+        public static void Body(string en, string ja, string fa)
+        {
+            Body(DirectTMPText.Raw(en, ja, fa), BodyText, BodyInset);
+        }
+
+        /// <summary>The same, with room taken out for a panel's own padding.</summary>
+        public static void Body(string en, string ja, string fa, float inset)
+        {
+            Body(DirectTMPText.Raw(en, ja, fa), BodyText, inset);
+        }
+
+        /// <summary>
+        /// Draws a wrapped paragraph from text in LOGICAL order - a string as
+        /// stored, not one that has already been through L() or Show().
+        ///
+        /// The distinction is not pedantry. Wrapping means choosing where to
+        /// break, and the only order in which a break point means anything is
+        /// the order the words are read in. Text that has already been
+        /// reordered for display would be broken into lines that come out
+        /// bottom-to-top.
+        /// </summary>
+        public static void Body(string logical, float inset = BodyInset)
+        {
+            Body(logical, BodyText, inset);
+        }
+
+        /// <summary>The same, in a style of the caller's choosing.</summary>
+        public static void Body(string logical, GUIStyle style, float inset = BodyInset)
+        {
+            if (string.IsNullOrEmpty(logical)) { return; }
+
+            GUILayout.Label(DirectTMPText.Wrap(logical, style, WrapWidth(inset)), style);
+        }
+
+        /// <summary>
+        /// The width a paragraph has to fit into. Never smaller than something
+        /// a word fits on, because a docked inspector two hundred pixels wide
+        /// would otherwise ask for a line break after every character.
+        /// </summary>
+        public static float WrapWidth(float inset = BodyInset)
+        {
+            return Mathf.Max(120f, EditorGUIUtility.currentViewWidth - inset);
+        }
+
+        // ==========================================
+        // Note
+        //
+        // What EditorGUILayout.HelpBox would draw, if
+        // HelpBox could wrap Persian.
+        //
+        // It cannot: the message goes straight into a
+        // style with wordWrap on, and there is no way to
+        // pre-break it because the box owns its own
+        // width. Every long explanation in this tool is
+        // in a HelpBox, and every one of them was
+        // unreadable in Persian - so the tool draws its
+        // own, out of the card it already had.
+        // ==========================================
+        /// <summary>How loud a note is.</summary>
+        public enum NoteLevel
+        {
+            Plain,
+            Info,
+            Warning,
+            Error
+        }
+
+        /// <summary>A boxed, localised explanation. Picks the language itself.</summary>
+        public static void Note(string en, string ja, string fa, NoteLevel level = NoteLevel.Info)
+        {
+            Note(DirectTMPText.Raw(en, ja, fa), level);
+        }
+
+        /// <summary>
+        /// A boxed explanation from text in LOGICAL order. See
+        /// <see cref="Body(string,float)"/> for why the distinction matters.
+        /// </summary>
+        public static void Note(string logical, NoteLevel level = NoteLevel.Info, float inset = BodyInset)
+        {
+            if (string.IsNullOrEmpty(logical)) { return; }
+
+            bool marked = level != NoteLevel.Plain;
+
+            using (new EditorGUILayout.HorizontalScope(Card))
+            {
+                if (marked && !Rtl) { Marker(level); }
+
+                // The marker column and the card's own padding come out of the
+                // width the text has to fit in, or the last word of every
+                // paragraph wraps on its own.
+                Body(logical, BodyText, inset + (marked ? 48f : 26f));
+
+                if (marked && Rtl) { Marker(level); }
+            }
+        }
+
+        private static void Marker(NoteLevel level)
+        {
+            Color previous = GUI.contentColor;
+            GUI.contentColor = TintFor(level);
+            GUILayout.Label(MarkerFor(level), EditorStyles.boldLabel, GUILayout.Width(18));
+            GUI.contentColor = previous;
+        }
+
+        private static Color TintFor(NoteLevel level)
+        {
+            switch (level)
+            {
+                case NoteLevel.Error: return Blush;
+                case NoteLevel.Warning: return Warn;
+                case NoteLevel.Info: return Accent;
+                default: return TextDim;
+            }
+        }
+
+        private static string MarkerFor(NoteLevel level)
+        {
+            switch (level)
+            {
+                case NoteLevel.Error: return "!";
+                case NoteLevel.Warning: return "~";
+                default: return "i";
+            }
         }
 
         // ==========================================

@@ -28,11 +28,10 @@ namespace UnityDirectTMP.Editor
         {
             DirectTMPBrand.Header(
                 DirectTMPConstants.ToolName,
-                string.Format(
-                    DirectTMPText.L(
-                        "{0} theme · mascot {1} · MIT licensed",
-                        "{0} テーマ · マスコット {1} · MIT ライセンス",
-                        "تم {0} · نماد {1} · لایسنس MIT"),
+                DirectTMPText.F(
+                    "{0} theme · mascot {1} · MIT licensed",
+                    "{0} テーマ · マスコット {1} · MIT ライセンス",
+                    "تم {0} · نماد {1} · لایسنس MIT",
                     DirectTMPConstants.ThemeName, DirectTMPConstants.MascotName));
 
             using (new EditorGUILayout.HorizontalScope())
@@ -42,12 +41,11 @@ namespace UnityDirectTMP.Editor
                 {
                     GUILayout.Space(4);
 
-                    GUILayout.Label(
-                        DirectTMPText.L(
-                            "Hand TextMeshPro the font file itself — a plain .ttf or .otf — and every language the font supports just works. No Font Asset Creator, no character ranges, no tofu.",
-                            "TextMeshPro にフォントファイル(ふつうの .ttf / .otf)をそのまま渡せば、そのフォントが対応する言語はすべてそのまま表示されます。Font Asset Creator も文字範囲の指定も豆腐もありません。",
-                            "فایل فونت رو — یه .ttf یا .otf ساده — مستقیم بده به TextMeshPro، و هر زبونی که فونت پشتیبانی می‌کنه همون‌جوری کار می‌کنه. نه Font Asset Creator، نه رنج کاراکتر، نه مربع خالی."),
-                        EditorStyles.wordWrappedLabel);
+                    DirectTMPBrand.Body(
+                        "Hand TextMeshPro the font file itself — a plain .ttf or .otf — and every language the font supports just works. No Font Asset Creator, no character ranges, no tofu.",
+                        "TextMeshPro にフォントファイル(ふつうの .ttf / .otf)をそのまま渡せば、そのフォントが対応する言語はすべてそのまま表示されます。Font Asset Creator も文字範囲の指定も豆腐もありません。",
+                        "فایل فونت رو — یه .ttf یا .otf ساده — مستقیم بده به TextMeshPro، و هر زبونی که فونت پشتیبانی می‌کنه همون‌جوری کار می‌کنه. نه Font Asset Creator، نه رنج کاراکتر، نه مربع خالی.",
+                        PanelInset);
 
                     GUILayout.Space(8);
                     DirectTMPBrand.SectionTitle(DirectTMPText.L("Right now", "現在の状態", "همین حالا"));
@@ -60,7 +58,7 @@ namespace UnityDirectTMP.Editor
                         Row(DirectTMPText.L("Cached atlases", "キャッシュ済みアトラス", "اطلس‌های کش‌شده"),
                             DirectTMP.CachedFontCount.ToString());
                         Row(DirectTMPText.Word("language"),
-                            DirectTMPText.Labels[DirectTMPText.IndexOf(DirectTMPText.Current)]);
+                            DirectTMPText.DisplayLabels[DirectTMPText.IndexOf(DirectTMPText.Current)]);
                     }
 
                     GUILayout.Space(8);
@@ -86,8 +84,7 @@ namespace UnityDirectTMP.Editor
 
                     GUILayout.Space(6);
                     GUILayout.Label(
-                        string.Format(
-                            DirectTMPText.L("Made with {0} by {1}", "{0} を込めて {1} より", "با {0} ساخته‌ی {1}"),
+                        DirectTMPText.F("Made with {0} by {1}", "{0} を込めて {1} より", "با {0} ساخته‌ی {1}",
                             DirectTMPConstants.Mark, DirectTMPConstants.Author),
                         EditorStyles.centeredGreyMiniLabel);
                 }
@@ -95,12 +92,18 @@ namespace UnityDirectTMP.Editor
             }
         }
 
+        // The window's two 14px gutters plus room for a scrollbar.
+        private const float PanelInset = 14f + 14f + 18f;
+
+        // The value half of a row is data, not prose: a font family name, a
+        // version, a count. Show() prepares it if it turns out to be Persian
+        // and leaves it alone if it does not.
         private static void Row(string label, string value)
         {
             using (new EditorGUILayout.HorizontalScope())
             {
                 GUILayout.Label(label, DirectTMPBrand.Subtitle, GUILayout.Width(160));
-                GUILayout.Label(value, EditorStyles.miniLabel);
+                GUILayout.Label(DirectTMPText.Show(value), EditorStyles.miniLabel);
             }
         }
     }

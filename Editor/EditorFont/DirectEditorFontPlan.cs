@@ -125,10 +125,14 @@ namespace UnityDirectTMP.Editor
         /// A one-line description for the Settings page and the About window,
         /// so "is my Editor restyled right now?" is answerable without opening
         /// the font window.
+        ///
+        /// Returned in LOGICAL order: it is composed into longer sentences -
+        /// the health report's findings, for one - and the caller that finally
+        /// draws it is the one that prepares it for display.
         /// </summary>
         public string Describe()
         {
-            if (!IsActive) { return DirectTMPText.L("Unity default", "Unity 標準", "پیش‌فرض یونیتی"); }
+            if (!IsActive) { return DirectTMPText.Raw("Unity default", "Unity 標準", "پیش‌فرض یونیتی"); }
 
             string name = Source == DirectEditorFontSource.SystemFont
                 ? SystemFamily
@@ -305,37 +309,41 @@ namespace UnityDirectTMP.Editor
                 && problem != DirectEditorFontProblem.NotDynamic;
         }
 
-        /// <summary>A human explanation of a problem, in the current language.</summary>
+        /// <summary>
+        /// A human explanation of a problem, in the current language and in
+        /// LOGICAL order - most of these are paragraphs, and a paragraph has
+        /// to be broken into lines before it is turned around for display.
+        /// </summary>
         public static string Describe(DirectEditorFontProblem problem)
         {
             switch (problem)
             {
                 case DirectEditorFontProblem.NoFontChosen:
-                    return DirectTMPText.L(
+                    return DirectTMPText.Raw(
                         "Pick a font first.",
                         "先にフォントを選んでください。",
                         "اول یک فونت انتخاب کن.");
 
                 case DirectEditorFontProblem.MissingAsset:
-                    return DirectTMPText.L(
+                    return DirectTMPText.Raw(
                         "That Font asset is no longer in the project.",
                         "その Font アセットはプロジェクトにありません。",
                         "اون فایل فونت دیگه توی پروژه نیست.");
 
                 case DirectEditorFontProblem.MissingSystemFamily:
-                    return DirectTMPText.L(
+                    return DirectTMPText.Raw(
                         "This machine has no installed font by that name.",
                         "この PC にその名前のフォントは入っていません。",
                         "روی این سیستم فونتی با این اسم نصب نیست.");
 
                 case DirectEditorFontProblem.NotDynamic:
-                    return DirectTMPText.L(
+                    return DirectTMPText.Raw(
                         "This Font asset is imported with a fixed character set, so it can only draw the characters baked into it. Switch its import mode to Dynamic for the full font.",
                         "この Font アセットは文字セットを固定して取り込まれているため、焼き込まれた文字しか描画できません。インポート設定を Dynamic に変えると全文字が使えます。",
                         "این فونت با یک مجموعه‌کاراکتر ثابت ایمپورت شده، پس فقط همون‌ها رو می‌تونه بکشه. حالت ایمپورتش رو بذار Dynamic تا کل فونت در دسترس باشه.");
 
                 case DirectEditorFontProblem.NoLatinCoverage:
-                    return DirectTMPText.L(
+                    return DirectTMPText.Raw(
                         "This font cannot draw the Editor's own interface (it is missing basic Latin letters, digits or punctuation). Applying it would leave every menu — including the one that undoes this — as empty boxes, so it is refused.",
                         "このフォントは Editor の UI を描画できません(基本ラテン文字・数字・記号が不足しています)。適用するとメニューがすべて豆腐になり、元に戻す操作もできなくなるため、適用を拒否しました。",
                         "این فونت نمی‌تونه رابط خود یونیتی رو بکشه (حروف پایه‌ی لاتین، عدد یا علائم رو نداره). اگه اعمال بشه همه‌ی منوها — از جمله همونی که این کار رو برمی‌گردونه — مربع خالی می‌شن، برای همین اعمال نشد.");

@@ -79,48 +79,56 @@ namespace UnityDirectTMP.Editor
             GUILayout.Space(6);
         }
 
+        // The window's two 10px gutters plus a scrollbar; an entry adds the
+        // card's padding, its marker column and its action button.
+        private const float PanelInset = 10f + 10f + 18f;
+        private const float EntryInset = PanelInset + 11f + 11f + 30f + 170f;
+
         private void DrawBanner()
         {
             DirectHealthLevel worst = _report.Worst;
 
             string message;
-            MessageType type;
+            DirectTMPBrand.NoteLevel level;
 
             switch (worst)
             {
                 case DirectHealthLevel.Problem:
                     message = string.Format(
-                        DirectTMPText.L(
+                        DirectTMPText.Raw(
                             "{0} thing(s) are stopping this package from working properly.",
                             "{0} 件、正常な動作を妨げている問題があります。",
                             "{0} مورد جلوی کارِ درست این پکیج رو گرفته."),
                         _report.CountAt(DirectHealthLevel.Problem));
-                    type = MessageType.Error;
+                    level = DirectTMPBrand.NoteLevel.Error;
                     break;
 
                 case DirectHealthLevel.Warning:
                     message = string.Format(
-                        DirectTMPText.L(
+                        DirectTMPText.Raw(
                             "Everything works. {0} thing(s) are worth a look.",
                             "動作に問題はありません。{0} 件、確認をおすすめします。",
                             "همه‌چیز کار می‌کنه. {0} مورد ارزش نگاه کردن داره."),
                         _report.CountAt(DirectHealthLevel.Warning));
-                    type = MessageType.Warning;
+                    level = DirectTMPBrand.NoteLevel.Warning;
                     break;
 
                 default:
-                    message = DirectTMPText.L(
+                    message = DirectTMPText.Raw(
                         "Everything checks out.",
                         "すべて正常です。",
                         "همه‌چیز درسته.");
-                    type = MessageType.Info;
+                    level = DirectTMPBrand.NoteLevel.Info;
                     break;
             }
 
             using (new EditorGUILayout.HorizontalScope())
             {
                 GUILayout.Space(10);
-                EditorGUILayout.HelpBox(message, type);
+                using (new EditorGUILayout.VerticalScope())
+                {
+                    DirectTMPBrand.Note(message, level, PanelInset);
+                }
                 GUILayout.Space(10);
             }
             GUILayout.Space(4);
@@ -139,12 +147,16 @@ namespace UnityDirectTMP.Editor
 
                     using (new EditorGUILayout.VerticalScope())
                     {
-                        GUILayout.Label(entry.Subject, EditorStyles.boldLabel);
-                        GUILayout.Label(entry.Finding, EditorStyles.wordWrappedLabel);
+                        // Subject and Finding are assembled by the health
+                        // check, and a Finding can carry a font family name -
+                        // which is exactly the kind of string that turns out
+                        // to be Persian on the machine reporting the bug.
+                        GUILayout.Label(DirectTMPText.Show(entry.Subject), DirectTMPBrand.BoldLine);
+                        DirectTMPBrand.Body(entry.Finding, EntryInset);
 
                         if (!string.IsNullOrEmpty(entry.Advice))
                         {
-                            GUILayout.Label(entry.Advice, DirectTMPBrand.Subtitle);
+                            DirectTMPBrand.Body(entry.Advice, DirectTMPBrand.Subtitle, EntryInset);
                         }
                     }
 

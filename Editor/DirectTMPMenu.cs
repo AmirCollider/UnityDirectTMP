@@ -226,7 +226,10 @@ namespace UnityDirectTMP.Editor
             DirectEditorFontProblem problem = DirectEditorFont.Validate(plan);
             if (DirectEditorFontRules.IsFatal(problem))
             {
-                EditorUtility.DisplayDialog(DirectTMPConstants.ToolName, DirectEditorFontRules.Describe(problem), "OK");
+                EditorUtility.DisplayDialog(
+                    DirectTMPConstants.ToolName,
+                    DirectTMPText.Dialog(DirectEditorFontRules.Describe(problem)),
+                    "OK");
                 return;
             }
 

@@ -75,7 +75,48 @@ Type your actual UI string into the preview field once, and all of them render i
 - ⚡ **Cached, not rebuilt** — font faces are cached per *(file + sampling size + render mode)*, so a screen with 200 labels sharing one font builds exactly one atlas.
 - 🧹 **A repo that stays small** — the `.ttf` is the only thing you commit. No multi-megabyte atlas textures in version control, no merge conflicts on binary assets.
 - 🩺 **A health check that explains itself** — **Unity DirectTMP ▸ Health Check…** reports what the package can see of your project, fixes what it can in one click, and copies the whole report to your clipboard for a bug report.
+- ✍️ **Arabic-script text that actually reads** — Persian, Arabic and Urdu are joined up and put in reading order before they are drawn, both in this package's own windows and, if you want it, in your own labels. See [New in 1.0.1](#new-in-101).
 - 🌐 **Trilingual editor UI** — English, 日本語 and فارسی, switchable from **Unity DirectTMP ▸ Language**.
+
+<a id="new-in-101"></a>
+### ✍️ New in 1.0.1 — Arabic-script shaping and bidi
+
+Unity does not join Arabic-script letters, and it does not reorder
+right-to-left text. Neither does TextMeshPro — `isRightToLeftText` reverses
+the order and leaves every letter in its standalone form. So a label reading
+`سلام دنیا` comes out as a row of disconnected letters running the wrong way,
+and no font fixes it, because it is not a font problem.
+
+1.0.1 fixes it, starting with this package's own windows — 1.0's Persian
+interface had exactly this bug, which is an embarrassing thing for a text tool
+to ship.
+
+Three small, dependency-free classes in `Runtime/` do the work, and they are
+public because your labels have the same problem:
+
+```csharp
+using UnityDirectTMP;
+
+// Joined up, in reading order, ready to draw.
+label.text = DirectDisplayText.Prepare("سلام دنیا");
+
+// Nothing right-to-left in it? Returned unchanged, by reference.
+DirectDisplayText.Prepare("Hello world");   // same string, no allocation
+
+// The two halves, if you want them separately.
+DirectArabicShaper.Shape("فونت");           // initial / medial / final forms
+DirectBidi.Reorder("אב TMP גד");            // "דג TMP בא"
+```
+
+What it handles: the Arabic block plus the letters Persian and Urdu add
+(`پ گ چ ژ ک ی`), the four lam-alef ligatures, harakat that must not break a
+join, ZWNJ (`می‌شه`, `فونت‌ها`), Latin runs inside Persian sentences, both
+kinds of digit, mirrored brackets, and paragraph wrapping — which has to break
+lines *before* reordering or the paragraph reads bottom-up.
+
+What it does not handle yet: shaping from a font's own OpenType `GSUB` table.
+It uses the Unicode presentation forms, which every Arabic-capable font
+carries.
 
 ### 📋 Requirements
 
@@ -193,6 +234,9 @@ UnityDirectTMP/
 │   ├── DirectFontFallback.cs   ← ordered fallback chains
 │   ├── DirectFontFile.cs       ← reads name / maxp / cmap straight from the file
 │   ├── DirectFontScripts.cs    ← which writing system a codepoint belongs to
+│   ├── DirectArabicShaper.cs   ← Arabic-script letters, joined
+│   ├── DirectBidi.cs           ← the Unicode bidirectional algorithm (UAX #9)
+│   ├── DirectDisplayText.cs    ← both of the above, in the order they must happen
 │   └── DirectTMP.cs            ← the small public API
 ├── Editor/
 │   ├── Brand/                  ← the Inkwell palette, Inky, the text pack
@@ -218,8 +262,9 @@ UnityDirectTMP/
 |---|---|---|
 | Latin / Cyrillic / Greek | ✅ | Nothing to configure |
 | CJK — 日本語 / 中文 / 한국어 | ✅ | On demand, so no 40 MB atlas sitting in memory |
-| Arabic script — فارسی / العربية / اردو | ✅ | Glyphs render; joining-form shaping is on the roadmap |
-| Devanagari / Thai / Hebrew | ✅ | Glyphs render; complex shaping is on the roadmap |
+| Arabic script — فارسی / العربية / اردو | ✅ | Joined and reordered by `DirectDisplayText`, in the Editor and available for your labels |
+| Hebrew | ✅ | Reordered by `DirectDisplayText`; Hebrew needs no joining |
+| Devanagari / Thai | ✅ | Glyphs render; reordering and conjunct shaping are on the roadmap |
 | Color emoji (COLR / CBDT) | 🚧 | Planned |
 
 The Font Catalog reports coverage per script from the font's own `cmap`, with a distinct **partial** state — which is how you find out a font has Arabic but not the four Persian letters *before* shipping a Persian build.
@@ -238,8 +283,9 @@ Unity DirectTMP is for that second world. The font file already knows exactly wh
 - [x] Use the player's own installed system fonts
 - [x] Font Catalog with real per-script coverage read from the file
 - [x] Restyle the Unity Editor's own interface
+- [x] Arabic-script joining forms and bidirectional reordering (Persian / Arabic / Urdu / Hebrew)
 - [ ] `.ttc` collection support with a face-index picker
-- [ ] Arabic-script shaping (Persian / Arabic / Urdu joining forms) from the font's own OpenType tables
+- [ ] Arabic-script shaping from the font's own OpenType `GSUB` table, for contextual alternates
 - [ ] Color & emoji fonts (COLR / CBDT)
 - [ ] Variable font axes — weight, width, slant
 
@@ -317,7 +363,45 @@ GameObject に `敵スポーナー` と名前を付けたり、フォルダー�
 - ♻️ **自分で面倒をみるアトラス** — 使われたグリフから順に追加され、必要に応じて複数テクスチャに拡張されます。
 - ⚡ **作り直さず、キャッシュする** — 同じフォントのラベルが200個ある画面でも、アトラスは1つだけです。
 - 🩺 **理由まで説明する動作チェック** — **Unity DirectTMP ▸ Health Check…** が状態を報告し、直せるものはワンクリックで直し、レポート全体をクリップボードにコピーします。
+- ✍️ **読めるアラビア文字** — ペルシア語・アラビア語・ウルドゥー語を、描画前に接続形へ変換し表示順に並べ替えます。本パッケージのウィンドウはもちろん、あなたのラベルでも使えます。
 - 🌐 **3言語のエディタUI** — English / 日本語 / فارسی。**Unity DirectTMP ▸ Language** で切り替えられます。
+
+### ✍️ 1.0.1 の新機能 — アラビア文字のシェーピングと双方向テキスト
+
+Unity はアラビア文字を接続せず、右から左へのテキストを並べ替えもしません。
+TextMeshPro も同じで、`isRightToLeftText` は順序を反転するだけで、文字は
+孤立形のままです。そのため `سلام دنیا` は、ばらばらの文字が逆向きに並んだ
+状態で表示されます。これはフォントの問題ではないので、フォントを替えても
+直りません。
+
+1.0.1 はこれを、まず本パッケージ自身のウィンドウから直しました
+(1.0 のペルシア語UIはまさにこの不具合を抱えていました)。
+
+`Runtime/` の依存関係なしの3クラスが担当し、あなたのラベルにも同じ問題が
+あるため public です:
+
+```csharp
+using UnityDirectTMP;
+
+// 接続済み・表示順、そのまま描画できます。
+label.text = DirectDisplayText.Prepare("سلام دنیا");
+
+// 右から左の文字が無ければ、そのまま同じ参照が返ります。
+DirectDisplayText.Prepare("Hello world");
+
+// 個別に使うこともできます。
+DirectArabicShaper.Shape("فونت");
+DirectBidi.Reorder("אב TMP גד");            // "דג TMP בא"
+```
+
+対応範囲: アラビア文字ブロックとペルシア語・ウルドゥー語の追加文字
+(`پ گ چ ژ ک ی`)、ラーム・アリフ合字4種、接続を壊してはいけない発音記号、
+ZWNJ(`می‌شه` / `فونت‌ها`)、ペルシア語文中のラテン文字、2種類の数字、
+鏡像化する括弧、そして段落の折り返し(並べ替えの**前**に改行位置を決めないと
+段落が下から上に読めてしまいます)。
+
+未対応: フォント自身の OpenType `GSUB` テーブルからのシェーピング。現在は
+Unicode の表示形(presentation forms)を使っています。
 
 ### 📋 必要環境
 
@@ -396,8 +480,9 @@ Debug.Log($"{info.DisplayName}: {info.GlyphCount} グリフ");
 - [x] OS にインストール済みのフォントを利用
 - [x] ファイルから直接読んだ文字体系カバレッジ付きのフォントカタログ
 - [x] Unity エディタ自身の UI のフォント変更
+- [x] アラビア文字の接続形と双方向テキストの並べ替え(ペルシア語・アラビア語・ウルドゥー語・ヘブライ語)
 - [ ] `.ttc` コレクション対応(フェイスインデックス選択)
-- [ ] アラビア文字のシェーピング(接続形)
+- [ ] フォント自身の OpenType `GSUB` を使ったシェーピング
 - [ ] カラーフォント・絵文字フォント(COLR / CBDT)
 - [ ] バリアブルフォントの軸
 
@@ -460,7 +545,46 @@ MIT — 詳細は [LICENSE](LICENSE) をご覧ください。無料です。リ�
 - ♻️ **اطلسی که خودش حواسش به خودشه** — گلیف‌ها به‌مرور اضافه می‌شن و در صورت نیاز روی چند تکسچر رشد می‌کنن.
 - ⚡ **کَش می‌شه، دوباره ساخته نمی‌شه** — یه صفحه با ۲۰۰ لیبل که همه یه فونت دارن، فقط یه اطلس می‌سازه.
 - 🩺 **یه بررسی سلامت که خودش رو توضیح می‌ده** — **Unity DirectTMP ▸ Health Check…** وضعیت رو گزارش می‌ده، هرچی رو بشه با یه کلیک درست می‌کنه، و کل گزارش رو برای ثبت باگ کپی می‌کنه.
+- ✍️ **متن فارسی که واقعاً خونده می‌شه** — حروف قبل از رسم به هم می‌چسبن و به ترتیب خوندن مرتب می‌شن؛ هم توی پنجره‌های خود این پکیج، هم اگه بخوای توی لیبل‌های خودت.
 - 🌐 **رابط سه‌زبانه** — English / 日本語 / فارسی، از **Unity DirectTMP ▸ Language**.
+
+### ✍️ تازه در ۱.۰.۱ — چسبیدن حروف و ترتیب راست‌به‌چپ
+
+یونیتی حروف خط عربی رو به هم نمی‌چسبونه و متن راست‌به‌چپ رو هم مرتب نمی‌کنه.
+TextMeshPro هم همین‌طور: `isRightToLeftText` فقط ترتیب رو برعکس می‌کنه و حروف
+توی شکل جدا باقی می‌مونن. برای همین یه لیبل با متن `سلام دنیا` به شکل یه ردیف
+حرفِ جدا و برعکس نشون داده می‌شه — و این مشکلِ فونت نیست، پس با عوض کردن فونت
+درست نمی‌شه.
+
+نسخه‌ی ۱.۰.۱ این رو درست می‌کنه، و اول از همه توی پنجره‌های خودِ این پکیج:
+رابط فارسی نسخه‌ی ۱.۰ دقیقاً همین ایراد رو داشت، که برای ابزاری که کارش
+نمایش درست متنه اصلاً پذیرفتنی نیست.
+
+سه کلاس کوچیک و بدون وابستگی توی `Runtime/` این کار رو می‌کنن، و public هستن
+چون لیبل‌های خودت هم همین مشکل رو دارن:
+
+```csharp
+using UnityDirectTMP;
+
+// چسبیده و به ترتیب نمایش، آماده‌ی رسم.
+label.text = DirectDisplayText.Prepare("سلام دنیا");
+
+// اگه چیزی راست‌به‌چپ توش نباشه، همون رشته برمی‌گرده.
+DirectDisplayText.Prepare("Hello world");
+
+// هر کدوم رو جدا هم می‌شه استفاده کرد.
+DirectArabicShaper.Shape("فونت");
+DirectBidi.Reorder("אב TMP גד");            // "דג TMP בא"
+```
+
+چی رو پوشش می‌ده: بلوک عربی به‌علاوه‌ی حروفی که فارسی و اردو اضافه می‌کنن
+(`پ گ چ ژ ک ی`)، چهار ترکیب لام‌الف، اعرابی که نباید اتصال رو بشکنه،
+نیم‌فاصله (`می‌شه`، `فونت‌ها`)، کلمه‌های لاتین وسط جمله‌ی فارسی، هر دو نوع
+رقم، پرانتزهای آینه‌ای، و شکستن خط پاراگراف — که باید **قبل** از مرتب‌سازی
+انجام بشه وگرنه پاراگراف از پایین به بالا خونده می‌شه.
+
+چی رو هنوز پوشش نمی‌ده: شکل‌دهی از جدول `GSUB` خود فونت. فعلاً از شکل‌های
+نمایشی یونیکد استفاده می‌شه که هر فونتِ دارای خط عربی اون‌ها رو داره.
 
 ### 📋 پیش‌نیازها
 
@@ -539,8 +663,9 @@ Debug.Log(info.HasCodepoint('گ') ? "فارسی رو داره" : "فارسی ر�
 - [x] استفاده از فونت‌های نصب‌شده روی سیستم کاربر
 - [x] کاتالوگ فونت با پوشش واقعی خط‌ها، خونده‌شده از خود فایل
 - [x] عوض کردن فونت رابط خودِ ادیتور یونیتی
+- [x] چسبیدن حروف خط عربی و مرتب‌سازی راست‌به‌چپ (فارسی، عربی، اردو، عبری)
 - [ ] پشتیبانی از `.ttc` با انتخاب ایندکس فیس
-- [ ] چسبیدن حروف خط عربی (شکل‌دهی) از جدول‌های OpenType خود فونت
+- [ ] شکل‌دهی از جدول `GSUB` خود فونت، برای شکل‌های جایگزین وابسته به بافت
 - [ ] فونت‌های رنگی و ایموجی (COLR / CBDT)
 - [ ] محورهای فونت متغیر
 

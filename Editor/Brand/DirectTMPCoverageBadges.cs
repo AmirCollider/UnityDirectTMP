@@ -76,7 +76,10 @@ namespace UnityDirectTMP.Editor
             {
                 DirectScript script = entry.Key;
                 DirectScriptCoverage verdict = entry.Value;
-                string label = Label(script, verdict);
+                // Measure what will actually be drawn. Joining Arabic letters
+                // up changes their width, so measuring the stored form would
+                // wrap the row in the wrong place in exactly one language.
+                string label = DirectTMPText.Show(Label(script, verdict));
                 float width = DirectTMPBrand.Badge.CalcSize(new GUIContent(label)).x + 6f;
 
                 if (used + width > available && used > 0f)
@@ -86,16 +89,17 @@ namespace UnityDirectTMP.Editor
                     used = 0f;
                 }
 
-                DirectTMPBrand.Pill(label, DirectTMPBrand.ColorFor(verdict), Tooltip(script, verdict));
+                DirectTMPBrand.Pill(
+                    label,
+                    DirectTMPBrand.ColorFor(verdict),
+                    DirectTMPText.Show(Tooltip(script, verdict)));
                 used += width;
             }
 
             if (absent > 0)
             {
-                string more = string.Format(
-                    DirectTMPText.L("+{0} not covered", "+{0} 未収録", "+{0} پوشش ندارد"),
-                    absent);
-                DirectTMPBrand.Pill(more, DirectTMPBrand.Off, Absent(coverage));
+                string more = DirectTMPText.F("+{0} not covered", "+{0} 未収録", "+{0} پوشش ندارد", absent);
+                DirectTMPBrand.Pill(more, DirectTMPBrand.Off, DirectTMPText.Show(Absent(coverage)));
             }
 
             GUILayout.FlexibleSpace();
@@ -105,6 +109,9 @@ namespace UnityDirectTMP.Editor
         /// <summary>
         /// A one-line summary for places too tight for chips - a catalog row
         /// collapsed to a single line, a tooltip, a log message.
+        ///
+        /// LOGICAL order: it is a list of script names joined together, and
+        /// the caller that draws it prepares the finished line.
         /// </summary>
         public static string Summarize(IDictionary<DirectScript, DirectScriptCoverage> coverage)
         {
@@ -113,7 +120,7 @@ namespace UnityDirectTMP.Editor
             List<DirectScript> full = DirectFontScripts.FullyCovered(coverage);
             if (full.Count == 0)
             {
-                return DirectTMPText.L("No complete script", "完全な文字体系なし", "هیچ خطی کامل نیست");
+                return DirectTMPText.Raw("No complete script", "完全な文字体系なし", "هیچ خطی کامل نیست");
             }
 
             var names = new List<string>(full.Count);
@@ -124,6 +131,9 @@ namespace UnityDirectTMP.Editor
             return string.Join(" · ", names.ToArray());
         }
 
+        // Label, Tooltip and Absent all return LOGICAL text: each one glues a
+        // script name onto a sentence, and the gluing has to happen before
+        // anything is turned around for display.
         private static string Label(DirectScript script, DirectScriptCoverage verdict)
         {
             string name = DirectFontScripts.NameFor(script, DirectTMPText.Current);
@@ -137,7 +147,7 @@ namespace UnityDirectTMP.Editor
             {
                 case DirectScriptCoverage.Full:
                     return string.Format(
-                        DirectTMPText.L(
+                        DirectTMPText.Raw(
                             "{0}: every character checked for is present.",
                             "{0}: 確認した文字はすべて収録されています。",
                             "{0}: همه‌ی کاراکترهایی که چک شد موجوده."),
@@ -145,7 +155,7 @@ namespace UnityDirectTMP.Editor
 
                 case DirectScriptCoverage.Partial:
                     return string.Format(
-                        DirectTMPText.L(
+                        DirectTMPText.Raw(
                             "{0}: some characters are present and some are not. Text in this script will render with gaps.",
                             "{0}: 一部の文字だけが収録されています。この文字体系のテキストは一部が欠けて表示されます。",
                             "{0}: بعضی کاراکترها هست و بعضی نیست. متن این خط با جای خالی رندر می‌شه."),
@@ -153,7 +163,7 @@ namespace UnityDirectTMP.Editor
 
                 default:
                     return string.Format(
-                        DirectTMPText.L(
+                        DirectTMPText.Raw(
                             "{0}: not in this font.",
                             "{0}: このフォントには入っていません。",
                             "{0}: توی این فونت نیست."),
@@ -171,7 +181,7 @@ namespace UnityDirectTMP.Editor
                     names.Add(DirectFontScripts.NameFor(script, DirectTMPText.Current));
                 }
             }
-            return DirectTMPText.L("Not in this font: ", "このフォントに未収録: ", "توی این فونت نیست: ")
+            return DirectTMPText.Raw("Not in this font: ", "このフォントに未収録: ", "توی این فونت نیست: ")
                 + string.Join(", ", names.ToArray());
         }
     }

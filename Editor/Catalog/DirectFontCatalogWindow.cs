@@ -126,7 +126,7 @@ namespace UnityDirectTMP.Editor
                 };
                 foreach (DirectScript script in DirectFontScripts.All)
                 {
-                    scriptLabels.Add(DirectFontScripts.NameFor(script, DirectTMPText.Current));
+                    scriptLabels.Add(DirectTMPText.Show(DirectFontScripts.NameFor(script, DirectTMPText.Current)));
                 }
 
                 int pickedScript = EditorGUILayout.Popup(_scriptFilter, scriptLabels.ToArray(), EditorStyles.toolbarPopup, GUILayout.Width(140));
@@ -230,9 +230,7 @@ namespace UnityDirectTMP.Editor
         private void DrawList()
         {
             EditorGUILayout.LabelField(
-                string.Format(
-                    DirectTMPText.L("{0} font(s)", "{0} 件", "{0} فونت"),
-                    _visible.Count),
+                DirectTMPText.F("{0} font(s)", "{0} 件", "{0} فونت", _visible.Count),
                 EditorStyles.miniLabel);
 
             _scroll = EditorGUILayout.BeginScrollView(_scroll);
@@ -269,13 +267,18 @@ namespace UnityDirectTMP.Editor
             var content = new Rect(row.x + 10f, row.y + 6f, row.width - 20f, row.height - 12f);
 
             // --- line 1: name, source, size ---
+            // A font's own family name is data from the file, and a Persian
+            // font is named in Persian - so it goes through Show() like any
+            // other string the tool did not write.
             var nameRect = new Rect(content.x, content.y, content.width - 210f, 18f);
-            EditorGUI.LabelField(nameRect, entry.DisplayName, EditorStyles.boldLabel);
+            EditorGUI.LabelField(nameRect, DirectTMPText.Show(entry.DisplayName), EditorStyles.boldLabel);
 
             var metaRect = new Rect(content.xMax - 205f, content.y, 205f, 18f);
             string meta = entry.IsUsable
-                ? string.Format("{0:N0} {1} · {2}", entry.GlyphCount, DirectTMPText.Word("glyphs"),
-                    DirectFontCatalogFilter.FormatBytes(entry.Bytes))
+                ? DirectTMPText.Show(string.Format("{0:N0} {1} · {2}",
+                    entry.GlyphCount,
+                    DirectTMPText.WordRaw("glyphs"),
+                    DirectFontCatalogFilter.FormatBytes(entry.Bytes)))
                 : DirectTMPText.L("unreadable", "読み取り不可", "قابل خواندن نیست");
 
             var metaStyle = new GUIStyle(EditorStyles.miniLabel)
@@ -295,17 +298,17 @@ namespace UnityDirectTMP.Editor
 
             // --- line 3: where it came from, and the coverage summary ---
             var footRect = new Rect(content.x, content.yMax - 16f, content.width, 16f);
-            string origin = entry.Source == DirectCatalogSource.Project
+            string origin = DirectTMPText.Show(entry.Source == DirectCatalogSource.Project
                 ? entry.AssetPath
-                : DirectTMPText.L("Installed · ", "インストール済み · ", "نصب‌شده · ") + entry.FileName;
+                : DirectTMPText.Raw("Installed · ", "インストール済み · ", "نصب‌شده · ") + entry.FileName);
 
             var footStyle = new GUIStyle(EditorStyles.miniLabel) { normal = { textColor = DirectTMPBrand.TextDim } };
             EditorGUI.LabelField(new Rect(footRect.x, footRect.y, footRect.width * 0.45f, footRect.height), origin, footStyle);
 
             var coverageStyle = new GUIStyle(footStyle) { alignment = TextAnchor.MiddleRight };
-            string coverage = entry.IsUsable
+            string coverage = DirectTMPText.Show(entry.IsUsable
                 ? DirectTMPCoverageBadges.Summarize(entry.Coverage)
-                : (entry.Info != null ? entry.Info.Error : string.Empty);
+                : (entry.Info != null ? entry.Info.Error : string.Empty));
 
             EditorGUI.LabelField(
                 new Rect(footRect.x + (footRect.width * 0.45f), footRect.y, footRect.width * 0.55f, footRect.height),
@@ -315,9 +318,15 @@ namespace UnityDirectTMP.Editor
 
         private void DrawPreview(Rect rect, DirectCatalogEntry entry)
         {
-            string text = string.IsNullOrEmpty(_previewText)
+            // The preview is the one place a person types their OWN string
+            // and judges a font by it. Typing Persian into it and being shown
+            // the letters unjoined and backwards would answer the opposite of
+            // the question they asked. The text field itself keeps the raw
+            // string - editing reordered text is unusable - and only the
+            // rendering is prepared.
+            string text = DirectTMPText.Show(string.IsNullOrEmpty(_previewText)
                 ? DirectFontScripts.SampleFor(DirectScript.Latin)
-                : _previewText;
+                : _previewText);
 
             Font font = PreviewFont(entry);
             if (font == null)
@@ -402,7 +411,7 @@ namespace UnityDirectTMP.Editor
             var revealRect = new Rect(rect.x + (width * 2f), rect.y, width, rect.height);
             if (GUI.Button(revealRect, new GUIContent(
                     DirectTMPText.L("Reveal", "表示", "نمایش فایل"),
-                    entry.AbsolutePath),
+                    DirectTMPText.Show(entry.AbsolutePath)),
                     EditorStyles.miniButtonRight))
             {
                 EditorUtility.RevealInFinder(entry.AbsolutePath);
@@ -421,7 +430,7 @@ namespace UnityDirectTMP.Editor
             {
                 EditorUtility.DisplayDialog(
                     DirectTMPConstants.ToolName,
-                    DirectEditorFontRules.Describe(problem),
+                    DirectTMPText.Dialog(DirectEditorFontRules.Describe(problem)),
                     "OK");
                 return;
             }
@@ -440,6 +449,10 @@ namespace UnityDirectTMP.Editor
         // matched nothing (say that instead, and offer
         // to clear it).
         // ==========================================
+        // The empty state is drawn in a fixed 380px column, so the wrap width
+        // is that column rather than the window.
+        private static float EmptyStateInset => EditorGUIUtility.currentViewWidth - 380f + 8f;
+
         private void DrawEmptyState()
         {
             GUILayout.FlexibleSpace();
@@ -458,17 +471,18 @@ namespace UnityDirectTMP.Editor
                             : DirectTMPText.L("No fonts in this project yet.", "このプロジェクトにフォントがまだありません。", "هنوز هیچ فونتی توی این پروژه نیست."),
                         DirectTMPBrand.Title);
 
-                    GUILayout.Label(
+                    DirectTMPBrand.Body(
                         filtered
-                            ? DirectTMPText.L(
+                            ? DirectTMPText.Raw(
                                 "Try a different name, or widen the script filter.",
                                 "別の名前で検索するか、文字体系の絞り込みを緩めてください。",
                                 "یه اسم دیگه امتحان کن، یا فیلتر خط رو بازتر کن.")
-                            : DirectTMPText.L(
+                            : DirectTMPText.Raw(
                                 "Drop a .ttf or .otf anywhere in Assets, or switch on the installed fonts above to browse what this machine already has.",
                                 "Assets のどこかに .ttf / .otf を置くか、上の「インストール済み」を有効にして この PC のフォントを見てください。",
                                 "یه .ttf یا .otf هرجای Assets بنداز، یا از بالا «فونت‌های نصب‌شده» رو روشن کن تا چیزی که این سیستم داره رو ببینی."),
-                        DirectTMPBrand.Subtitle);
+                        DirectTMPBrand.Subtitle,
+                        EmptyStateInset);
 
                     GUILayout.Space(8);
                     if (filtered)

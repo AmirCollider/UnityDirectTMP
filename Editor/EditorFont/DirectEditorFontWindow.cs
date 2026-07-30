@@ -33,6 +33,10 @@ namespace UnityDirectTMP.Editor
 {
     internal sealed class DirectEditorFontWindow : EditorWindow
     {
+        // The window's two 10px gutters, the card's 11px padding and room for
+        // a scrollbar - the width a paragraph inside a card actually gets.
+        private const float CardInset = 10f + 10f + 11f + 11f + 18f;
+
         private DirectEditorFontPlan _plan;
         private Vector2 _scroll;
 
@@ -129,12 +133,11 @@ namespace UnityDirectTMP.Editor
 
             using (new EditorGUILayout.VerticalScope(DirectTMPBrand.Card))
             {
-                EditorGUILayout.LabelField(
-                    DirectTMPText.L(
-                        "Unity draws its own interface with its own font, which is why a GameObject named 敵スポーナー or a folder named فونت‌ها shows up as empty boxes in the Hierarchy. The asset is fine; the font Unity is drawing it with is not. Point the Editor at a font that covers the script and the boxes become letters.",
-                        "Unity は自身の UI を Unity のフォントで描画します。そのため「敵スポーナー」という GameObject や「فونت‌ها」というフォルダーは Hierarchy で豆腐になります。アセットは正常で、描画に使われているフォントが対応していないだけです。その文字体系を含むフォントに切り替えれば、そのまま読めるようになります。",
-                        "یونیتی رابط خودش رو با فونت خودش می‌کشه؛ برای همین یه GameObject به اسم «敵スポーナー» یا یه پوشه به اسم «فونت‌ها» توی Hierarchy مربع خالی نشون داده می‌شه. اسست سالمه، فونتی که باهاش کشیده می‌شه سالم نیست. اگه فونت خود ادیتور رو بذاری روی فونتی که اون خط رو داره، مربع‌ها تبدیل به حروف می‌شن."),
-                    EditorStyles.wordWrappedLabel);
+                DirectTMPBrand.Body(
+                    "Unity draws its own interface with its own font, which is why a GameObject named 敵スポーナー or a folder named فونت‌ها shows up as empty boxes in the Hierarchy. The asset is fine; the font Unity is drawing it with is not. Point the Editor at a font that covers the script and the boxes become letters.",
+                    "Unity は自身の UI を Unity のフォントで描画します。そのため「敵スポーナー」という GameObject や「فونت‌ها」というフォルダーは Hierarchy で豆腐になります。アセットは正常で、描画に使われているフォントが対応していないだけです。その文字体系を含むフォントに切り替えれば、そのまま読めるようになります。",
+                    "یونیتی رابط خودش رو با فونت خودش می‌کشه؛ برای همین یه GameObject به اسم «敵スポーナー» یا یه پوشه به اسم «فونت‌ها» توی Hierarchy مربع خالی نشون داده می‌شه. اسست سالمه، فونتی که باهاش کشیده می‌شه سالم نیست. اگه فونت خود ادیتور رو بذاری روی فونتی که اون خط رو داره، مربع‌ها تبدیل به حروف می‌شن.",
+                    CardInset);
 
                 using (new EditorGUILayout.HorizontalScope())
                 {
@@ -207,12 +210,11 @@ namespace UnityDirectTMP.Editor
 
             if (string.IsNullOrEmpty(_plan.AssetPath))
             {
-                EditorGUILayout.HelpBox(
-                    DirectTMPText.L(
-                        "No font picked yet. Any .ttf or .otf in your Assets folder will do — a font that covers the language your object names are in.",
-                        "まだフォントが選ばれていません。Assets 内の .ttf / .otf なら何でも構いません(オブジェクト名の言語を含むフォントを選んでください)。",
-                        "هنوز فونتی انتخاب نشده. هر .ttf یا .otf داخل پوشه‌ی Assets کار می‌کنه — فونتی که زبون اسم آبجکت‌هات رو داشته باشه."),
-                    MessageType.None);
+                DirectTMPBrand.Note(
+                    "No font picked yet. Any .ttf or .otf in your Assets folder will do — a font that covers the language your object names are in.",
+                    "まだフォントが選ばれていません。Assets 内の .ttf / .otf なら何でも構いません(オブジェクト名の言語を含むフォントを選んでください)。",
+                    "هنوز فونتی انتخاب نشده. هر .ttf یا .otf داخل پوشه‌ی Assets کار می‌کنه — فونتی که زبون اسم آبجکت‌هات رو داشته باشه.",
+                    DirectTMPBrand.NoteLevel.Plain);
             }
         }
 
@@ -220,12 +222,11 @@ namespace UnityDirectTMP.Editor
         {
             if (_families.Length == 0)
             {
-                EditorGUILayout.HelpBox(
-                    DirectTMPText.L(
-                        "Unity could not enumerate this machine's installed fonts.",
-                        "この PC のインストール済みフォントを列挙できませんでした。",
-                        "یونیتی نتونست فونت‌های نصب‌شده‌ی این سیستم رو لیست کنه."),
-                    MessageType.Warning);
+                DirectTMPBrand.Note(
+                    "Unity could not enumerate this machine's installed fonts.",
+                    "この PC のインストール済みフォントを列挙できませんでした。",
+                    "یونیتی نتونست فونت‌های نصب‌شده‌ی این سیستم رو لیست کنه.",
+                    DirectTMPBrand.NoteLevel.Warning);
                 return;
             }
 
@@ -233,6 +234,7 @@ namespace UnityDirectTMP.Editor
             {
                 EditorGUILayout.LabelField(
                     DirectTMPText.L("Installed", "インストール済み", "نصب‌شده"),
+                    DirectTMPBrand.Line,
                     GUILayout.Width(EditorGUIUtility.labelWidth));
                 _familyFilter = EditorGUILayout.TextField(_familyFilter);
             }
@@ -247,7 +249,7 @@ namespace UnityDirectTMP.Editor
             foreach (string family in matches)
             {
                 bool selected = family == _plan.SystemFamily;
-                bool nowSelected = GUILayout.Toggle(selected, family, EditorStyles.miniButton);
+                bool nowSelected = GUILayout.Toggle(selected, DirectTMPText.Show(family), EditorStyles.miniButton);
                 if (nowSelected && !selected)
                 {
                     _plan = new DirectEditorFontPlan(true, DirectEditorFontSource.SystemFont, _plan.AssetPath, family, _plan.SizeDelta);
@@ -338,7 +340,7 @@ namespace UnityDirectTMP.Editor
             {
                 if (_coverage != null && !string.IsNullOrEmpty(_coverage.Error))
                 {
-                    EditorGUILayout.HelpBox(_coverage.Error, MessageType.Warning);
+                    DirectTMPBrand.Note(_coverage.Error, DirectTMPBrand.NoteLevel.Warning, CardInset);
                 }
                 return;
             }
@@ -349,15 +351,14 @@ namespace UnityDirectTMP.Editor
             using (new EditorGUILayout.VerticalScope(DirectTMPBrand.Card))
             {
                 EditorGUILayout.LabelField(
-                    _coverage.DisplayName,
-                    EditorStyles.boldLabel);
+                    DirectTMPText.Show(_coverage.DisplayName),
+                    DirectTMPBrand.BoldLine);
 
                 EditorGUILayout.LabelField(
-                    string.Format(
-                        DirectTMPText.L(
-                            "{0:N0} glyphs · {1:N0} characters mapped",
-                            "{0:N0} グリフ · {1:N0} 文字を収録",
-                            "{0:N0} گلیف · {1:N0} کاراکتر"),
+                    DirectTMPText.F(
+                        "{0:N0} glyphs · {1:N0} characters mapped",
+                        "{0:N0} グリフ · {1:N0} 文字を収録",
+                        "{0:N0} گلیف · {1:N0} کاراکتر",
                         _coverage.GlyphCount, _coverage.CodepointCount),
                     EditorStyles.miniLabel);
 
@@ -386,9 +387,9 @@ namespace UnityDirectTMP.Editor
 
             if (font == null)
             {
-                EditorGUILayout.HelpBox(
-                    DirectTMPText.L("Nothing to preview yet.", "プレビューするものがありません。", "فعلاً چیزی برای پیش‌نمایش نیست."),
-                    MessageType.None);
+                DirectTMPBrand.Note(
+                    "Nothing to preview yet.", "プレビューするものがありません。", "فعلاً چیزی برای پیش‌نمایش نیست.",
+                    DirectTMPBrand.NoteLevel.Plain);
                 return;
             }
 
@@ -413,7 +414,12 @@ namespace UnityDirectTMP.Editor
                 foreach (DirectScript script in DirectFontScripts.All)
                 {
                     if (!ShouldPreview(script)) { continue; }
-                    GUILayout.Label(DirectFontScripts.SampleFor(script), _previewStyle);
+
+                    // The Arabic and Hebrew samples are the two rows somebody
+                    // opens this window to look at. Drawing them unprepared
+                    // would show the font failing at something the font is
+                    // fine at.
+                    GUILayout.Label(DirectTMPText.Show(DirectFontScripts.SampleFor(script)), _previewStyle);
                 }
             }
         }
@@ -457,9 +463,10 @@ namespace UnityDirectTMP.Editor
 
             if (problem != DirectEditorFontProblem.None)
             {
-                EditorGUILayout.HelpBox(
+                DirectTMPBrand.Note(
                     DirectEditorFontRules.Describe(problem),
-                    fatal ? MessageType.Error : MessageType.Warning);
+                    fatal ? DirectTMPBrand.NoteLevel.Error : DirectTMPBrand.NoteLevel.Warning,
+                    CardInset);
 
                 if (problem == DirectEditorFontProblem.NotDynamic)
                 {
@@ -501,11 +508,10 @@ namespace UnityDirectTMP.Editor
             if (DirectEditorFont.IsActive)
             {
                 EditorGUILayout.LabelField(
-                    string.Format(
-                        DirectTMPText.L(
-                            "Active now · {0} style(s) restyled",
-                            "適用中 · {0} 個のスタイルを変更",
-                            "الآن فعاله · {0} استایل عوض شده"),
+                    DirectTMPText.F(
+                        "Active now · {0} style(s) restyled",
+                        "適用中 · {0} 個のスタイルを変更",
+                        "الآن فعاله · {0} استایل عوض شده",
                         DirectEditorFont.PatchedStyleCount),
                     EditorStyles.miniLabel);
             }
@@ -517,12 +523,11 @@ namespace UnityDirectTMP.Editor
         private void DrawSafetyNote()
         {
             GUILayout.Space(6);
-            EditorGUILayout.HelpBox(
-                DirectTMPText.L(
-                    "Nothing is written to your Unity installation. The change lives in memory for this session only, so quitting Unity always restores the default font — and a font that cannot draw the Editor's own menus is refused rather than applied.",
-                    "Unity のインストール先には一切書き込みません。変更はこのセッションのメモリ上だけに存在するため、Unity を終了すれば必ず既定のフォントに戻ります。エディタのメニューを描画できないフォントは、適用せず拒否します。",
-                    "هیچ‌چیزی روی نصب یونیتی نوشته نمی‌شه. تغییر فقط توی حافظه‌ی همین سشن زندگی می‌کنه، پس بستن یونیتی همیشه فونت پیش‌فرض رو برمی‌گردونه — و فونتی که نتونه منوهای خود ادیتور رو بکشه، اصلاً اعمال نمی‌شه."),
-                MessageType.Info);
+            DirectTMPBrand.Note(
+                "Nothing is written to your Unity installation. The change lives in memory for this session only, so quitting Unity always restores the default font — and a font that cannot draw the Editor's own menus is refused rather than applied.",
+                "Unity のインストール先には一切書き込みません。変更はこのセッションのメモリ上だけに存在するため、Unity を終了すれば必ず既定のフォントに戻ります。エディタのメニューを描画できないフォントは、適用せず拒否します。",
+                "هیچ‌چیزی روی نصب یونیتی نوشته نمی‌شه. تغییر فقط توی حافظه‌ی همین سشن زندگی می‌کنه، پس بستن یونیتی همیشه فونت پیش‌فرض رو برمی‌گردونه — و فونتی که نتونه منوهای خود ادیتور رو بکشه، اصلاً اعمال نمی‌شه.",
+                DirectTMPBrand.NoteLevel.Info);
         }
     }
 }

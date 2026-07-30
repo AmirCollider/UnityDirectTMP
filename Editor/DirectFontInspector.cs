@@ -28,6 +28,10 @@ namespace UnityDirectTMP.Editor
     [CanEditMultipleObjects]
     internal sealed class DirectFontInspector : UnityEditor.Editor
     {
+        // An Inspector is narrow and indented, and its width is the whole
+        // window's rather than a panel's.
+        private const float InspectorInset = 42f;
+
         private SerializedProperty fontFile;
         private SerializedProperty fallbackChain;
         private SerializedProperty preserveMaterial;
@@ -54,12 +58,11 @@ namespace UnityDirectTMP.Editor
 
             if (directFont.GetComponent<TMP_Text>() == null)
             {
-                EditorGUILayout.HelpBox(
-                    DirectTMPText.L(
-                        "Direct Font needs a TextMeshPro component (TextMeshProUGUI or TextMeshPro) on the same GameObject — it has nothing to drive on its own.",
-                        "Direct Font は同じ GameObject 上の TextMeshPro(TextMeshProUGUI / TextMeshPro)を必要とします。単体では動作対象がありません。",
-                        "کامپوننت Direct Font به یه TextMeshPro (چه TextMeshProUGUI چه TextMeshPro) روی همون GameObject نیاز داره — تنهایی چیزی برای اداره کردن نداره."),
-                    MessageType.Warning);
+                DirectTMPBrand.Note(
+                    "Direct Font needs a TextMeshPro component (TextMeshProUGUI or TextMeshPro) on the same GameObject — it has nothing to drive on its own.",
+                    "Direct Font は同じ GameObject 上の TextMeshPro(TextMeshProUGUI / TextMeshPro)を必要とします。単体では動作対象がありません。",
+                    "کامپوننت Direct Font به یه TextMeshPro (چه TextMeshProUGUI چه TextMeshPro) روی همون GameObject نیاز داره — تنهایی چیزی برای اداره کردن نداره.",
+                    DirectTMPBrand.NoteLevel.Warning);
             }
 
             serializedObject.Update();
@@ -175,38 +178,40 @@ namespace UnityDirectTMP.Editor
 
             if (!_fileInfo.IsValid)
             {
-                EditorGUILayout.HelpBox(_fileInfo.Error, MessageType.Warning);
+                DirectTMPBrand.Note(_fileInfo.Error, DirectTMPBrand.NoteLevel.Warning, InspectorInset);
                 return;
             }
 
             using (new EditorGUILayout.VerticalScope(DirectTMPBrand.Card))
             {
-                EditorGUILayout.LabelField(_fileInfo.DisplayName, EditorStyles.boldLabel);
+                EditorGUILayout.LabelField(DirectTMPText.Show(_fileInfo.DisplayName), DirectTMPBrand.BoldLine);
                 EditorGUILayout.LabelField(
-                    string.Format("{0:N0} {1} · {2:N0} characters · {3}",
+                    DirectTMPText.Show(string.Format("{0:N0} {1} · {2:N0} characters · {3}",
                         _fileInfo.GlyphCount,
-                        DirectTMPText.Word("glyphs"),
+                        DirectTMPText.WordRaw("glyphs"),
                         _fileInfo.CodepointCount,
-                        DirectFontCatalogFilter.FormatBytes(_fileInfo.FileBytes)),
+                        DirectFontCatalogFilter.FormatBytes(_fileInfo.FileBytes))),
                     EditorStyles.miniLabel);
 
                 if (_fileInfo.FaceCount > 1)
                 {
-                    EditorGUILayout.HelpBox(
+                    DirectTMPBrand.Note(
                         string.Format(
-                            DirectTMPText.L(
+                            DirectTMPText.Raw(
                                 "This is a font collection with {0} faces. DirectTMP uses the first one; a face picker is on the roadmap.",
                                 "これは {0} 個のフェイスを持つフォントコレクションです。DirectTMP は最初のフェイスを使用します(フェイス選択は予定)。",
                                 "این یه کالکشن فونت با {0} فیس هست. DirectTMP از اولی استفاده می‌کنه؛ انتخاب فیس توی نقشه‌ی راهه."),
                             _fileInfo.FaceCount),
-                        MessageType.Info);
+                        DirectTMPBrand.NoteLevel.Info,
+                        InspectorInset);
                 }
 
                 if (!DirectEditorFont.IsDynamicImport(assetPath))
                 {
-                    EditorGUILayout.HelpBox(
+                    DirectTMPBrand.Note(
                         DirectEditorFontRules.Describe(DirectEditorFontProblem.NotDynamic),
-                        MessageType.Warning);
+                        DirectTMPBrand.NoteLevel.Warning,
+                        InspectorInset);
 
                     if (GUILayout.Button(DirectTMPText.L(
                             "Set import mode to Dynamic", "インポート設定を Dynamic にする", "حالت ایمپورت رو بذار Dynamic")))
@@ -233,27 +238,29 @@ namespace UnityDirectTMP.Editor
 
             if (asset == null)
             {
-                EditorGUILayout.HelpBox(
-                    DirectTMPText.L(
-                        "Nothing built yet. Assign a Font File and it builds when this component is enabled.",
-                        "まだ何も生成されていません。Font File を設定すると、このコンポーネントが有効になったときに生成されます。",
-                        "هنوز چیزی ساخته نشده. یه Font File بذار تا موقع فعال شدن این کامپوننت ساخته بشه."),
-                    MessageType.None);
+                DirectTMPBrand.Note(
+                    "Nothing built yet. Assign a Font File and it builds when this component is enabled.",
+                    "まだ何も生成されていません。Font File を設定すると、このコンポーネントが有効になったときに生成されます。",
+                    "هنوز چیزی ساخته نشده. یه Font File بذار تا موقع فعال شدن این کامپوننت ساخته بشه.",
+                    DirectTMPBrand.NoteLevel.Plain);
                 return;
             }
 
             using (new EditorGUILayout.VerticalScope(DirectTMPBrand.Card))
             {
-                EditorGUILayout.LabelField(DirectTMPText.L("Family", "ファミリー", "خانواده"), asset.faceInfo.familyName);
-                EditorGUILayout.LabelField(DirectTMPText.L("Style", "スタイル", "استایل"), asset.faceInfo.styleName);
+                EditorGUILayout.LabelField(
+                    DirectTMPText.L("Family", "ファミリー", "خانواده"),
+                    DirectTMPText.Show(asset.faceInfo.familyName));
+                EditorGUILayout.LabelField(
+                    DirectTMPText.L("Style", "スタイル", "استایل"),
+                    DirectTMPText.Show(asset.faceInfo.styleName));
 
                 int glyphs = asset.glyphTable != null ? asset.glyphTable.Count : 0;
                 int chars = asset.characterTable != null ? asset.characterTable.Count : 0;
 
                 EditorGUILayout.LabelField(
                     DirectTMPText.L("Rasterized so far", "これまでにラスタライズ済み", "تا الآن رسترایز شده"),
-                    string.Format(
-                        DirectTMPText.L("{0} glyph(s), {1} character(s)", "{0} グリフ / {1} 文字", "{0} گلیف، {1} کاراکتر"),
+                    DirectTMPText.F("{0} glyph(s), {1} character(s)", "{0} グリフ / {1} 文字", "{0} گلیف، {1} کاراکتر",
                         glyphs, chars));
 
                 EditorGUILayout.LabelField(

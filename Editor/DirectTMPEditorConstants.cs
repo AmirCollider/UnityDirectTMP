@@ -75,7 +75,29 @@ namespace UnityDirectTMP.Editor
         public const string MenuLanguageRoot = MenuRoot + "Language/";
         public const string MenuLanguageEnglish = MenuLanguageRoot + "English";
         public const string MenuLanguageJapanese = MenuLanguageRoot + "日本語";
-        public const string MenuLanguagePersian = MenuLanguageRoot + "فارسی";
+
+        // ==========================================
+        // فارسی, spelled the only way a menu bar can
+        // draw it.
+        //
+        // Unity's menus are drawn by Unity's own text
+        // stack, which joins nothing and reorders
+        // nothing - so the plain codepoints of "فارسی"
+        // arrive in the menu bar as five unjoined
+        // letters in the wrong order, which is not a
+        // word. Every other string in the package is
+        // prepared for display at runtime by
+        // DirectDisplayText; a [MenuItem] path is a
+        // compile-time constant and cannot be.
+        //
+        // So it is written out here already prepared:
+        // the same five letters, joined and in visual
+        // order. DirectTextDisplayTests asserts that
+        // this constant is exactly what
+        // DirectDisplayText.Prepare("فارسی") produces,
+        // so the two can never drift.
+        // ==========================================
+        public const string MenuLanguagePersian = MenuLanguageRoot + "\uFBFD\uFEB3\uFEAD\uFE8E\uFED3";
 
         public const string MenuSettings = MenuRoot + "Settings…";
         public const string MenuHealthCheck = MenuRoot + "Health Check…";

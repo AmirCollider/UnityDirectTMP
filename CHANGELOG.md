@@ -13,10 +13,87 @@ roadmap in the [README](README.md#-roadmap).
 ### Planned
 - `.ttc` / `.otc` collection support with a face-index picker. The catalog
   already reports the face count and flags that only face 0 is used.
-- Arabic-script shaping (Persian / Arabic / Urdu joining forms) from the font's
-  own OpenType tables.
+- Arabic-script shaping from the font's own OpenType `GSUB` tables, so a font
+  with contextual alternates or a full ligature set uses them. 1.0.1 shapes
+  via the Unicode presentation forms, which every Arabic-capable font carries
+  and which covers Persian, Arabic and Urdu correctly.
 - Colour & emoji fonts (COLR / CBDT).
 - Variable font axes — weight, width, slant.
+
+## [1.0.1] - 2026-07-30
+
+A text tool has to get its own text right.
+
+1.0 shipped with a trilingual editor UI, and the Persian third of it was
+unreadable: every label drawn unjoined and in reverse. The first thing a new
+user saw was the welcome screen, and on that screen a package that exists to
+fix broken text was displaying broken text.
+
+The cause was not the font and not the translation. Unity's IMGUI — which
+draws every Editor window, this package's included — does no Arabic shaping
+and no bidirectional reordering. It hands each codepoint to the font in the
+order it is stored, which for Persian is neither the shape nor the order a
+reader needs. Nothing in Unity does this, and nothing in TextMeshPro does it
+either.
+
+So the package now does it.
+
+### Added
+- **`DirectArabicShaper`** — joins Arabic-script letters up, choosing the
+  isolated / initial / medial / final form each letter's neighbours call for.
+  Covers the Arabic block plus the letters Persian and Urdu add on top of it
+  (`پ گ چ ژ ک ی ...`), the four lam-alef ligatures, the harakat that must not
+  break a join, and ZWNJ — which Persian needs for `می‌شه` and `فونت‌ها`, and
+  which a shaper written for Arabic alone always misses.
+- **`DirectBidi`** — the Unicode Bidirectional Algorithm (UAX #9) over one
+  line at a time: Latin runs inside Persian sentences still read forwards,
+  numbers stay ascending, trailing punctuation lands on the correct end, and
+  brackets are mirrored.
+- **`DirectDisplayText`** — the two in the order they have to happen, plus the
+  line breaking a wrapped right-to-left paragraph needs. Reordering a
+  paragraph and then letting the renderer wrap it produces lines that read
+  bottom to top, so lines are broken first, in reading order.
+- All three are public, `Runtime`, Unity-free and unit-tested, so a project
+  can use them on its own labels — TextMeshPro's `isRightToLeftText` reverses
+  without joining, and this is the missing half.
+- `DirectTextDisplayTests` — 34 tests over shaping, reordering, wrapping and
+  the editor's own text funnel.
+
+### Fixed
+- **Every Persian string in every window** now renders joined and in reading
+  order: the welcome screen, the Font Catalog, the Editor Font window, the
+  Health Check, the About box, the Project Settings page, the DirectFont
+  Inspector, the coverage badges, the tooltips and the confirmation dialogs.
+- **Font names, asset paths and preview text** are prepared too, not just the
+  tool's own strings. A font family named in Persian, a folder called
+  `فونت‌ها`, and whatever you type into the catalog's shared preview field all
+  render correctly — which for a font browser is the entire job.
+- **Long paragraphs wrap in the right direction.** `EditorGUILayout.HelpBox`
+  cannot be told where to break a line, so the explanations that used it are
+  drawn by the package instead.
+- **The `فارسی` menu item** in `Unity DirectTMP ▸ Language` is spelled in the
+  form a menu bar can draw, since a `[MenuItem]` path is a compile-time
+  constant and cannot be prepared at runtime. A test pins it to the shaper's
+  output so the two cannot drift.
+- **The Fallback Chain window** was the one screen that had never been
+  translated. It speaks all three languages now.
+
+### Changed
+- Windows mirror their layout when the interface language is right-to-left:
+  the header's mascot, accent stripe and version swap ends, cards put their
+  mark on the leading side, and paragraphs align to the side the eye starts
+  from.
+- `DirectTMPText.L()`, `Word()` and `C()` return display-ready text; `Raw()`,
+  `WordRaw()` and `For()` return it as stored, for composing. `F()` formats
+  and prepares in one call, in that order — reordering a format string first
+  would move `{0}` to where the number belongs on screen.
+
+### Repository
+- Added `.gitignore` and `.gitattributes`. Both were required by
+  `validate_package.py` and neither existed, so CI had been failing two checks
+  on every push. `.meta` files are marked `merge=ours`, because a merge
+  conflict inside one makes Unity mint a fresh GUID and quietly detach every
+  reference to that asset.
 
 ## [1.0.0] - 2026-07-30
 
