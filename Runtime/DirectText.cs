@@ -208,6 +208,7 @@ namespace UnityDirectTMP
         [NonSerialized] private int _retries;
         [NonSerialized] private bool _realigned;
         [NonSerialized] private string _unjoined;
+        [NonSerialized] private DirectFontFormsReport _forms;
         [NonSerialized] private HorizontalAlignmentOptions _alignmentBefore;
 
         // ==========================================
@@ -413,6 +414,15 @@ namespace UnityDirectTMP
                 {
                     _font = _text.font;
                     _glyphs.Clear();
+
+                    // Before anything asks this font what it can draw: give it
+                    // the joined shapes it already has but has no codepoint
+                    // for. A font carrying the Arabic presentation block and
+                    // not the Persian one - Segoe UI, and most of Windows -
+                    // gains پ چ ژ گ ک ی here, and every probe below then
+                    // answers yes for them. Fonts that need nothing pay one
+                    // lookup per form and no allocation.
+                    if (substituteMissingGlyphs) { _forms = DirectFontForms.TopUp(_font); }
                 }
 
                 // New text is a fresh start for the "is there a layout yet?"
@@ -621,10 +631,20 @@ namespace UnityDirectTMP
             string key = _font.name + ":" + _unjoined;
             if (!s_warned.Add(key)) { return; }
 
+            // By the time this runs, DirectFontForms has already tried to take
+            // the shapes out of the font's own OpenType tables. Reaching here
+            // means even that found nothing - so say what was tried, or the
+            // reader concludes the package never looked.
+            string why = _forms != null && !string.IsNullOrEmpty(_forms.Reason)
+                ? " " + _forms.Reason
+                : string.Empty;
+
             DirectTMPLog.Warn(
                 $"'{_font.name}' has no joined shapes for {_unjoined} — those letters will be drawn on their own. "
-                + "The font carries the Arabic presentation forms (U+FE70–FEFF) but not the Persian ones (U+FB50–FBFF). "
-                + "Pick a font that has both if you are setting Persian.",
+                + "The font carries the Arabic presentation forms (U+FE70–FEFF) but not the Persian ones (U+FB50–FBFF), "
+                + "and its own OpenType joining rules could not supply them either."
+                + why
+                + " Pick a font that carries both blocks, or one with OpenType Arabic shaping, if you are setting Persian.",
                 this);
         }
 
@@ -656,5 +676,8 @@ namespace UnityDirectTMP
 
         /// <summary>The Persian letters this label's font cannot join, or null.</summary>
         internal string EditorUnjoinedLetters => _unjoined;
+
+        /// <summary>What was taken out of the font's own OpenType tables for it, or null.</summary>
+        internal DirectFontFormsReport EditorForms => _forms;
     }
 }

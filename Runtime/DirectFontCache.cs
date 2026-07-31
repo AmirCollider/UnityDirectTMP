@@ -118,6 +118,10 @@ namespace UnityDirectTMP
                 DestroyAsset(kvp.Value);
             }
             s_assets.Clear();
+
+            // The presentation forms DirectFontForms added lived in those
+            // assets; what it remembers about them is now about nothing.
+            DirectFontForms.Forget();
             return n;
         }
 

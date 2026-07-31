@@ -113,15 +113,19 @@ What that gets you:
   reordered on its own.
 - **Rich text survives.** `<b>` and `<color>` move with the words they wrap
   and swap ends when the span turns around; letters still join across a tag.
-- **The font is asked before every shape is used.** Persian's own letters
+- **A font is asked for its own joining rules.** Persian's own letters
   (`پ چ ژ ک گ ی`) shape into a *different* Unicode block (U+FB50–FBFF) from
   the rest of the alphabet (U+FE70–FEFF), and plenty of fonts — Segoe UI
-  among them — carry one block in full and none of the other. So each form is
-  checked against the font: `ک` and `ی` are stood in for with Arabic shapes
-  that are the same drawing (kaf, and dotless alef maksura), and a letter with
-  no stand-in is drawn plainly *and its neighbours are told*, so nothing draws
-  a connecting stroke into a letter that has none. Direct Text names the
-  letters a font cannot join, in its Inspector and once in the console.
+  among them — carry one block in full and none of the other. That is not a
+  missing shape, only a missing address: every font that sets Arabic has an
+  initial peh, reached through its OpenType `GSUB` table. So the font is read,
+  the glyphs it *would* use are rasterized, and they are registered under the
+  codepoints the shaper emits — nothing is written to the font file. A letter
+  no route can reach falls back to a stand-in (`ک` and `ی` have Arabic shapes
+  that are the same drawing) and then to being drawn plainly *with its
+  neighbours told*, so nothing draws a connecting stroke into a letter that
+  has none. Direct Text names what it added, and what it could not, in its
+  Inspector and once in the console.
 - **`label.text` is still your string.** The work happens in TextMeshPro's own
   `textPreprocessor`, so what you set is what you read back — and anything
   that writes to a label is covered without knowing the component exists: a
@@ -177,9 +181,9 @@ join, ZWNJ (`می‌شه`, `فونت‌ها`), Latin runs inside Persian sentenc
 kinds of digit, mirrored brackets, and paragraph wrapping — which has to break
 lines *before* reordering or the paragraph reads bottom-up.
 
-What it does not handle yet: shaping from a font's own OpenType `GSUB` table.
-It uses the Unicode presentation forms, which every Arabic-capable font
-carries.
+It reads the font's own `GSUB` joining features (`isol` / `fina` / `init` /
+`medi`) and falls back to the Unicode presentation forms. What it does not
+handle yet: the rest of `GSUB` — contextual alternates and full ligature sets.
 
 ### 📋 Requirements
 
@@ -351,7 +355,8 @@ Unity DirectTMP is for that second world. The font file already knows exactly wh
 - [x] Arabic-script joining forms and bidirectional reordering (Persian / Arabic / Urdu / Hebrew)
 - [x] The same on your own TMP labels, with rich text and wrapped lines handled
 - [ ] `.ttc` collection support with a face-index picker
-- [ ] Arabic-script shaping from the font's own OpenType `GSUB` table, for contextual alternates
+- [x] Arabic joining forms read from the font's own OpenType `GSUB` table
+- [ ] The rest of `GSUB` — contextual alternates and full ligature sets
 - [ ] Color & emoji fonts (COLR / CBDT)
 - [ ] Variable font axes — weight, width, slant
 
@@ -523,8 +528,9 @@ ZWNJ(`می‌شه` / `فونت‌ها`)、ペルシア語文中のラテン文�
 鏡像化する括弧、そして段落の折り返し(並べ替えの**前**に改行位置を決めないと
 段落が下から上に読めてしまいます)。
 
-未対応: フォント自身の OpenType `GSUB` テーブルからのシェーピング。現在は
-Unicode の表示形(presentation forms)を使っています。
+フォント自身の `GSUB` の接続フィーチャ(`isol` / `fina` / `init` / `medi`)を
+読み、無い場合は Unicode の表示形(presentation forms)にフォールバックします。
+未対応: `GSUB` の残り — 文脈依存の異体字と完全な合字セット。
 
 ### 📋 必要環境
 
@@ -605,7 +611,8 @@ Debug.Log($"{info.DisplayName}: {info.GlyphCount} グリフ");
 - [x] Unity エディタ自身の UI のフォント変更
 - [x] アラビア文字の接続形と双方向テキストの並べ替え(ペルシア語・アラビア語・ウルドゥー語・ヘブライ語)
 - [ ] `.ttc` コレクション対応(フェイスインデックス選択)
-- [ ] フォント自身の OpenType `GSUB` を使ったシェーピング
+- [x] フォント自身の OpenType `GSUB` から読み取るアラビア文字の接続形
+- [ ] `GSUB` の残り — 文脈依存の異体字と合字セット
 - [ ] カラーフォント・絵文字フォント(COLR / CBDT)
 - [ ] バリアブルフォントの軸
 
@@ -766,8 +773,9 @@ DirectBidi.Reorder("אב TMP גד");            // "דג TMP בא"
 رقم، پرانتزهای آینه‌ای، و شکستن خط پاراگراف — که باید **قبل** از مرتب‌سازی
 انجام بشه وگرنه پاراگراف از پایین به بالا خونده می‌شه.
 
-چی رو هنوز پوشش نمی‌ده: شکل‌دهی از جدول `GSUB` خود فونت. فعلاً از شکل‌های
-نمایشی یونیکد استفاده می‌شه که هر فونتِ دارای خط عربی اون‌ها رو داره.
+فیچرهای اتصالِ `GSUB`ِ خودِ فونت (`isol` / `fina` / `init` / `medi`) خونده می‌شه و
+اگه نبود، به شکل‌های نمایشی یونیکد برمی‌گرده. چی رو هنوز پوشش نمی‌ده: بقیه‌ی
+`GSUB` — شکل‌های جایگزینِ وابسته به بافت و مجموعه‌ی کاملِ لیگاتورها.
 
 ### 📋 پیش‌نیازها
 
@@ -848,7 +856,8 @@ Debug.Log(info.HasCodepoint('گ') ? "فارسی رو داره" : "فارسی ر�
 - [x] عوض کردن فونت رابط خودِ ادیتور یونیتی
 - [x] چسبیدن حروف خط عربی و مرتب‌سازی راست‌به‌چپ (فارسی، عربی، اردو، عبری)
 - [ ] پشتیبانی از `.ttc` با انتخاب ایندکس فیس
-- [ ] شکل‌دهی از جدول `GSUB` خود فونت، برای شکل‌های جایگزین وابسته به بافت
+- [x] شکل‌های اتصالِ خط عربی، خونده‌شده از جدول `GSUB`ِ خودِ فونت
+- [ ] بقیه‌ی `GSUB` — شکل‌های جایگزینِ وابسته به بافت و لیگاتورها
 - [ ] فونت‌های رنگی و ایموجی (COLR / CBDT)
 - [ ] محورهای فونت متغیر
 

@@ -472,6 +472,34 @@ namespace UnityDirectTMP
         }
 
         /// <summary>
+        /// Every letter this shaper knows how to join.
+        ///
+        /// Exposed so that <see cref="DirectFontForms"/> can walk the same
+        /// alphabet this file does when it asks a font for its own joined
+        /// glyphs. Two lists of Persian letters that could drift apart would
+        /// be one list too many.
+        /// </summary>
+        public static IEnumerable<char> JoiningLetters => Forms.Keys;
+
+        /// <summary>
+        /// The four presentation-form codepoints for a letter, in
+        /// <see cref="DirectJoiningForm"/> order - isolated, final, initial,
+        /// medial - with '\0' where the letter has no such form.
+        ///
+        /// <paramref name="destination"/> must have room for four; it is
+        /// filled rather than allocated so a caller sweeping the whole
+        /// alphabet allocates once.
+        /// </summary>
+        public static bool TryGetForms(char letter, char[] destination)
+        {
+            if (destination == null || destination.Length < 4) { return false; }
+            if (!Forms.TryGetValue(letter, out char[] forms)) { return false; }
+
+            for (int i = 0; i < 4; i++) { destination[i] = forms[i]; }
+            return true;
+        }
+
+        /// <summary>
         /// True when a font can draw this letter joined up - in its own
         /// presentation forms, or in the ones this file will stand in for
         /// them.

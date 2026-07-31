@@ -61,17 +61,36 @@ namespace UnityDirectTMP.Editor
                     DirectTMPBrand.NoteLevel.Info);
             }
 
+            // What the font's own OpenType tables supplied. Worth saying out
+            // loud: this is the step that makes Persian join on a font that
+            // carries only half of the presentation forms, and a user who has
+            // been staring at a broken پ deserves to see it happen.
+            DirectFontFormsReport forms = directText.EditorForms;
+            if (forms != null && forms.FormsAdded > 0)
+            {
+                DirectTMPBrand.Note(
+                    DirectTMPText.Raw(
+                        $"This font was missing the joined shapes for {forms.LettersJoined}, so they were taken from its own OpenType joining rules instead — {forms.FormsAdded} forms added. The letters join normally; nothing was changed on disk.",
+                        $"このフォントには {forms.LettersJoined} の接続形がありませんでしたが、フォント自身の OpenType 接続規則から取得しました（{forms.FormsAdded} 字形を追加）。これらの文字は通常どおり接続します。ディスク上のフォントは変更されていません。",
+                        $"این فونت شکلِ چسبیده‌ی {forms.LettersJoined} رو نداشت، برای همین از روی قواعدِ اتصالِ OpenTypeِ خودِ فونت برداشته شد — {forms.FormsAdded} شکل اضافه شد. حالا این حروف مثل بقیه می‌چسبن؛ روی فایل فونت هیچ تغییری داده نشده."),
+                    DirectTMPBrand.NoteLevel.Info);
+            }
+
             string unjoined = directText.EditorUnjoinedLetters;
             if (!string.IsNullOrEmpty(unjoined))
             {
                 // Not a failure of the shaping - a fact about the font, and
                 // the one thing that still looks like a bug after everything
-                // else is right.
+                // else is right. Reaching here means the OpenType route above
+                // came up empty too, so the message has to say that it was
+                // tried; otherwise the reader concludes nobody looked.
+                string why = forms != null && !string.IsNullOrEmpty(forms.Reason) ? " " + forms.Reason : string.Empty;
+
                 DirectTMPBrand.Note(
                     DirectTMPText.Raw(
-                        $"This font has no joined shapes for {unjoined}. Persian adds those letters to the Arabic alphabet and they live in a different Unicode block (U+FB50–FBFF) from the rest of it (U+FE70–FEFF) — a font can carry one block in full and none of the other, which is why the rest of the word joins and these do not. They are drawn on their own; ک and ی are stood in for automatically. To join everything, use a font that carries both blocks.",
-                        $"このフォントには {unjoined} の接続形がありません。ペルシア語がアラビア文字に追加したこれらの文字は、他の文字(U+FE70–FEFF)とは別のブロック(U+FB50–FBFF)にあります。一方のブロックだけを収録したフォントは珍しくなく、そのため語の他の部分は接続してこれらだけが接続しません。該当文字は単独字形で描画されます(ک と ی は自動で代替)。すべて接続させるには、両方のブロックを持つフォントを使ってください。",
-                        $"این فونت شکلِ چسبیده‌ی {unjoined} رو نداره. این حروف رو فارسی به الفبای عربی اضافه کرده و توی یه بلوک یونیکد جدا (U+FB50–FBFF) از بقیه‌ی حروف (U+FE70–FEFF) هستن — خیلی از فونت‌ها یکی از این دو بلوک رو کامل دارن و اون یکی رو اصلاً ندارن، برای همین بقیه‌ی کلمه می‌چسبه و همین چند حرف نه. این‌ها جدا نوشته می‌شن (برای ک و ی خودکار جایگزین گذاشته می‌شه). اگه می‌خوای همه‌چیز بچسبه، فونتی بردار که هر دو بلوک رو داشته باشه."),
+                        $"This font has no joined shapes for {unjoined}, in either place they could come from. Persian adds those letters to the Arabic alphabet and they live in a different Unicode block (U+FB50–FBFF) from the rest of it (U+FE70–FEFF) — a font can carry one block in full and none of the other, which is why the rest of the word joins and these do not. The font's own OpenType joining rules were asked next and had nothing either.{why} They are drawn on their own. To join everything, use a font that carries both blocks or one with OpenType Arabic shaping — most Persian fonts do.",
+                        $"このフォントには {unjoined} の接続形が、参照しうるどちらの場所にもありません。ペルシア語がアラビア文字に追加したこれらの文字は、他の文字(U+FE70–FEFF)とは別のブロック(U+FB50–FBFF)にあります。一方のブロックだけを収録したフォントは珍しくなく、そのため語の他の部分は接続してこれらだけが接続しません。続いてフォント自身の OpenType 接続規則も参照しましたが、そちらにもありませんでした。{why} 該当文字は単独字形で描画されます。すべて接続させるには、両方のブロックを持つフォントか、OpenType のアラビア文字シェーピングを備えたフォント(ペルシア語向けフォントのほとんど)を使ってください。",
+                        $"این فونت شکلِ چسبیده‌ی {unjoined} رو نداره — نه توی بلوکِ یونیکد، نه توی خودِ فونت. این حروف رو فارسی به الفبای عربی اضافه کرده و توی یه بلوک یونیکد جدا (U+FB50–FBFF) از بقیه‌ی حروف (U+FE70–FEFF) هستن؛ خیلی از فونت‌ها یکی از این دو بلوک رو کامل دارن و اون یکی رو اصلاً ندارن، برای همین بقیه‌ی کلمه می‌چسبه و همین چند حرف نه. بعدش سراغ قواعدِ اتصالِ OpenTypeِ خودِ فونت رفتیم، اونم چیزی نداشت.{why} این‌ها جدا نوشته می‌شن. اگه می‌خوای همه‌چیز بچسبه، فونتی بردار که هر دو بلوک رو داشته باشه یا شیپینگِ عربیِ OpenType داشته باشه — بیشترِ فونت‌های فارسی دارن."),
                     DirectTMPBrand.NoteLevel.Warning);
             }
 

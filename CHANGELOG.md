@@ -13,12 +13,76 @@ roadmap in the [README](README.md#-roadmap).
 ### Planned
 - `.ttc` / `.otc` collection support with a face-index picker. The catalog
   already reports the face count and flags that only face 0 is used.
-- Arabic-script shaping from the font's own OpenType `GSUB` tables, so a font
-  with contextual alternates or a full ligature set uses them. 1.1.0 shapes
-  via the Unicode presentation forms, and falls back to the plain letters for
-  a font that carries none.
+- The rest of `GSUB`: contextual alternates and a font's full ligature set.
+  1.2.0 reads the joining features — `isol` / `fina` / `init` / `medi` — which
+  is what makes a letter connect; the remainder is what makes it beautiful.
 - Colour & emoji fonts (COLR / CBDT).
 - Variable font axes — weight, width, slant.
+
+## [1.2.0] - 2026-07-30
+
+The font was never missing the shapes. It was missing the codepoints.
+
+1.1.0 and 1.1.1 both took the Unicode presentation forms as the source of
+truth: to draw a joined پ you ask the font for U+FB58, and if it has no such
+character there is nothing more to be done. Half of that is right — the forms
+are the only way to reach a joined letter through a cmap, and they are why
+this package can shape Persian at all without a text engine.
+
+The other half was wrong. Those blocks are split: پ چ ژ ک گ ی shape into
+U+FB50–FBFF and the rest of the alphabet into U+FE70–FEFF, and a font may
+carry one and not the other. Segoe UI does exactly that, which is why the bug
+was on every Windows machine. But **Segoe UI can draw a joined peh** — every
+font that sets Arabic can, through its OpenType `GSUB` table, which is what a
+real shaping engine uses and what the presentation blocks were always standing
+in for. The glyphs were there the whole time. Only the address was missing.
+
+So 1.1.1 gave up one letter too early, and `پروژه` came out as a peh standing
+alone next to `روژه`. That is the screenshot this release exists for.
+
+### Fixed
+- **A font's own joining rules are read, and the missing forms are built from
+  them.** Before a label is shaped, `DirectFontForms` asks the font which
+  glyph it would use for each letter in each joining position, rasterizes
+  those glyphs, and registers them in the TextMeshPro font asset under the
+  presentation codepoints the shaper emits. The shaper is unchanged; U+FB58 is
+  simply there now. On a font carrying Forms-B and no Forms-A this recovers
+  every Persian letter — پ چ ژ ک گ ی and thirty more — and `پروژه`, `پوشه‌ها`
+  and `اسکریپت` join in full.
+- **ی is no longer stood in for when it does not need to be.** The alef-maksura
+  substitution added in 1.1.1 is now the third answer, not the second: the
+  font's real farsi-yeh forms are used whenever `GSUB` can name them, so the
+  letter is drawn as the font's designer drew it rather than as its nearest
+  Arabic relative.
+- **The warning says what was tried.** Reaching the "this font cannot join
+  these letters" message now means both routes came up empty, and the message
+  names which one failed and why — in English, 日本語 and فارسی, in the console
+  and in the Inspector.
+
+### Added
+- `DirectFontGsub` — reads `GSUB`'s `isol` / `fina` / `init` / `medi` features
+  for the Arabic script: lookup type 1 in both single-substitution formats,
+  and type 7 extension lookups. Pure C#, bytes in and facts out, bounds-checked
+  at every read; a corrupt or hostile font produces an empty answer, never an
+  exception. Verified glyph-for-glyph against the reference implementation on
+  DejaVu Sans, FreeSerif, FreeSans and Unifont.
+- `DirectFontForms.TopUp(TMP_FontAsset)` — the top-up itself, and
+  `ReportFor(...)` to ask what it did. Every step of it is allowed to fail: any
+  failure leaves the font asset untouched and the shaper falls back to exactly
+  the 1.1.1 behaviour, so the worst outcome of this release is the previous one.
+- `DirectArabicShaper.JoiningLetters` and `TryGetForms(...)`, so the alphabet is
+  stated once rather than in two files that can drift apart.
+- Sixteen tests in `DirectFontGsubTests`, over both substitution formats,
+  coverage ordering, extension lookups, a font whose joining rules belong to
+  another script, and every truncation and single-byte corruption of a font
+  that was valid. `SyntheticFont` can now build a font with a `GSUB` table.
+
+### Notes
+- Reading `GSUB` needs the font's bytes. Those are available for a font loaded
+  from a path, from a `byte[]`, or from a system font, and — in the Editor —
+  for any imported font asset. A player build handed a Unity `Font` asset has
+  no route to them, and falls back to the presentation forms, which is what
+  every version before this one used.
 
 ## [1.1.1] - 2026-07-30
 

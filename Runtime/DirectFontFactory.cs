@@ -74,6 +74,15 @@ namespace UnityDirectTMP
             return asset;
         }
 
+        // The bytes behind an asset, remembered so DirectFontForms can read the
+        // font's own joining rules later. A TMP_FontAsset keeps a Unity Font,
+        // and a Font's file is not readable from a player build - so whoever
+        // had the path or the buffer is the only one who can say.
+        private static void RememberSource(TMP_FontAsset asset, string path, byte[] bytes)
+        {
+            DirectFontForms.Remember(asset, path, bytes);
+        }
+
         // ==========================================
         // CreateFromPath
         // A .ttf/.otf anywhere on disk - StreamingAssets,
@@ -96,11 +105,13 @@ namespace UnityDirectTMP
             if (factory != null)
             {
                 TMP_FontAsset asset = InvokeSourceFactory(factory, absolutePath, settings);
-                if (asset != null) { FinalizeAsset(asset, name); return asset; }
+                if (asset != null) { FinalizeAsset(asset, name); RememberSource(asset, absolutePath, null); return asset; }
             }
 
             // Older TMP: build it ourselves from the FontEngine.
-            return BuildViaFontEngine(() => FontEngine.LoadFontFace(absolutePath, settings.SamplingPointSize), settings, name);
+            TMP_FontAsset built = BuildViaFontEngine(() => FontEngine.LoadFontFace(absolutePath, settings.SamplingPointSize), settings, name);
+            RememberSource(built, absolutePath, null);
+            return built;
         }
 
         // ==========================================
@@ -126,14 +137,16 @@ namespace UnityDirectTMP
             if (factory != null)
             {
                 TMP_FontAsset asset = InvokeSourceFactory(factory, fontBytes, settings);
-                if (asset != null) { FinalizeAsset(asset, name); return asset; }
+                if (asset != null) { FinalizeAsset(asset, name); RememberSource(asset, null, fontBytes); return asset; }
             }
 
             // Older TMP: spool to disk and go through the path builder.
             string spooled = SpoolToCache(fontBytes);
             if (spooled != null)
             {
-                return BuildViaFontEngine(() => FontEngine.LoadFontFace(spooled, settings.SamplingPointSize), settings, name);
+                TMP_FontAsset built = BuildViaFontEngine(() => FontEngine.LoadFontFace(spooled, settings.SamplingPointSize), settings, name);
+                RememberSource(built, spooled, fontBytes);
+                return built;
             }
             return null;
         }
