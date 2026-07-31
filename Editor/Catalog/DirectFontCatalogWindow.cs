@@ -26,6 +26,7 @@
 //     frames a second. The visible-range check is what
 //     keeps it smooth.
 // ==========================================
+using System;
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
@@ -360,14 +361,70 @@ namespace UnityDirectTMP.Editor
             if (_previewFonts.TryGetValue(key, out Font cached)) { return cached; }
 
             Font built = null;
-            if (entry.Info != null && !string.IsNullOrEmpty(entry.Info.FamilyName))
+
+            // Only ask for a family Unity itself says is installed.
+            //
+            // CreateDynamicFontFromOSFont hands back a non-null Font for a
+            // name it cannot resolve, and the failure only surfaces when
+            // something tries to DRAW with it - at which point Unity logs
+            // three errors, per row, per repaint, forever. A .ttc collection
+            // is the usual cause: the family name written inside face 0 is
+            // not the name the OS registered the file under, so "BIZ
+            // UDMincho" is a real font that cannot be asked for by that name.
+            //
+            // Asking Unity for the list first turns a console flood into one
+            // row that quietly falls back to the plain label.
+            if (entry.Info != null && !string.IsNullOrEmpty(entry.Info.FamilyName) && IsInstalled(entry.Info.FamilyName))
             {
                 built = Font.CreateDynamicFontFromOSFont(entry.Info.FamilyName, 15);
+
+                // A dynamic font with no face behind it has no atlas. Drawing
+                // with it is what logs; not drawing with it costs a duller
+                // row and nothing else.
+                if (built != null && (built.material == null || built.material.mainTexture == null))
+                {
+                    UnityEngine.Object.DestroyImmediate(built);
+                    built = null;
+                }
+
                 if (built != null) { built.hideFlags = HideFlags.HideAndDontSave; }
             }
 
+            // Cached even when null, so a font that cannot be previewed is
+            // asked about once rather than sixty times a second.
             _previewFonts[key] = built;
             return built;
+        }
+
+        // Unity's own list of installed families, read once. Names are
+        // compared case-insensitively because the OS is inconsistent about
+        // case and a preview is not worth being strict over.
+        private static HashSet<string> s_installed;
+
+        private static bool IsInstalled(string family)
+        {
+            if (s_installed == null)
+            {
+                s_installed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                try
+                {
+                    string[] names = Font.GetOSInstalledFontNames();
+                    if (names != null)
+                    {
+                        foreach (string name in names)
+                        {
+                            if (!string.IsNullOrEmpty(name)) { s_installed.Add(name); }
+                        }
+                    }
+                }
+                catch
+                {
+                    // No list to be had on this platform. Fall through to
+                    // "assume yes" rather than blanking every preview.
+                }
+            }
+
+            return s_installed.Count == 0 || s_installed.Contains(family);
         }
 
         // ==========================================
