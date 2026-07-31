@@ -632,19 +632,27 @@ namespace UnityDirectTMP
             if (!s_warned.Add(key)) { return; }
 
             // By the time this runs, DirectFontForms has already tried to take
-            // the shapes out of the font's own OpenType tables. Reaching here
-            // means even that found nothing - so say what was tried, or the
-            // reader concludes the package never looked.
-            string why = _forms != null && !string.IsNullOrEmpty(_forms.Reason)
-                ? " " + _forms.Reason
+            // the shapes out of the font's own OpenType tables, for this font
+            // AND for every fallback behind it. Reaching here means all of
+            // that found nothing.
+            //
+            // The per-font breakdown goes in the message rather than being
+            // left for somebody to ask about, because the failure it explains
+            // is invisible from the outside: the text is unjoined either way,
+            // and nothing on screen distinguishes "this font has nothing to
+            // give" from "the letters are coming from a fallback nobody
+            // looked at". One line settles which.
+            string why = _forms != null && !string.IsNullOrEmpty(_forms.Detail)
+                ? "\nWhat each font in this label's chain had to offer:\n" + _forms.Detail
                 : string.Empty;
 
             DirectTMPLog.Warn(
                 $"'{_font.name}' has no joined shapes for {_unjoined} — those letters will be drawn on their own. "
-                + "The font carries the Arabic presentation forms (U+FE70–FEFF) but not the Persian ones (U+FB50–FBFF), "
-                + "and its own OpenType joining rules could not supply them either."
-                + why
-                + " Pick a font that carries both blocks, or one with OpenType Arabic shaping, if you are setting Persian.",
+                + "Persian's own letters shape into U+FB50–FBFF and the rest of the alphabet into U+FE70–FEFF, "
+                + "and a font can carry one block and not the other. The fonts' own OpenType joining rules were "
+                + "asked next and could not supply them either. Pick a font that carries both blocks, or one with "
+                + "OpenType Arabic shaping — most Persian fonts have it."
+                + why,
                 this);
         }
 

@@ -62,6 +62,43 @@ namespace UnityDirectTMP
     }
 
     /// <summary>
+    /// Whether a font can set the Arabic script JOINED - which is a different
+    /// question from whether it contains the letters, and the one that decides
+    /// whether Persian looks right.
+    ///
+    /// It has to be asked separately because a font can pass the obvious test
+    /// and fail the real one. Arial Unicode MS contains پ چ ژ گ; it has no
+    /// joined shapes for any of them and no OpenType rules to make some. Every
+    /// coverage badge in every tool calls that font "supports Arabic", and
+    /// every Persian word set in it comes out in pieces.
+    /// </summary>
+    public enum DirectJoiningSupport
+    {
+        /// <summary>The font has no Arabic-script letters at all. Nothing to join.</summary>
+        NotArabicScript = 0,
+
+        /// <summary>
+        /// The font has the letters and no way to join them: no presentation
+        /// forms, and no OpenType joining rules either. It can spell Persian
+        /// and it cannot write it.
+        /// </summary>
+        LettersOnly = 1,
+
+        /// <summary>
+        /// The font joins through its own OpenType rules - the modern way, and
+        /// what a font built for a real shaping engine carries. DirectTMP reads
+        /// them and builds the forms it needs.
+        /// </summary>
+        OpenType = 2,
+
+        /// <summary>
+        /// The font carries the Unicode presentation forms outright, for every
+        /// letter. Nothing has to be derived.
+        /// </summary>
+        PresentationForms = 3
+    }
+
+    /// <summary>
     /// What a font file says about itself. Produced by
     /// <see cref="DirectFontFile"/>; consumed by the Font Catalog, the Editor
     /// Font picker and the Inspector read-out.
@@ -107,6 +144,20 @@ namespace UnityDirectTMP
 
         /// <summary>How many distinct codepoints are mapped in total.</summary>
         public int CodepointCount { get; internal set; }
+
+        /// <summary>Whether this font can set the Arabic script joined, and how.</summary>
+        public DirectJoiningSupport ArabicJoining { get; internal set; }
+
+        /// <summary>
+        /// The Arabic-script letters this font has but cannot join, space
+        /// separated, or empty. On a font that fails Persian this reads
+        /// "پ چ ژ گ" — which is the whole bug report in four characters.
+        /// </summary>
+        public string UnjoinableLetters { get; internal set; } = string.Empty;
+
+        /// <summary>True when the font has Arabic letters it cannot join up.</summary>
+        public bool JoinsArabicScript => ArabicJoining == DirectJoiningSupport.OpenType
+                                      || ArabicJoining == DirectJoiningSupport.PresentationForms;
 
         /// <summary>
         /// A display name that is always something: the foundry's family and
@@ -285,6 +336,7 @@ namespace UnityDirectTMP
                 }
 
                 info.IsValid = info.CodepointCount > 0;
+                if (info.IsValid) { ReadJoining(data, info); }
                 return info;
             }
             catch (Exception e)
@@ -612,6 +664,82 @@ namespace UnityDirectTMP
                 ranges.Add(new DirectCodepointRange(start, end));
             }
             return ranges;
+        }
+
+        // ==========================================
+        // Can this font JOIN what it contains?
+        //
+        // The question every coverage badge skips. A font
+        // passes "has Arabic" by containing ا ب پ; it
+        // passes this one only if it can also draw them
+        // connected, which needs either the presentation
+        // forms outright or OpenType rules to derive them
+        // from. Arial Unicode MS contains fifty thousand
+        // glyphs, every Persian letter among them, and
+        // fails this - so a user picks it, sees Persian
+        // come out in pieces, and has nothing anywhere
+        // telling them why.
+        //
+        // The letters checked are Persian's own, because
+        // they are the ones a font is most likely to have
+        // and least likely to join: they shape into
+        // U+FB50..FBFF while the rest of the alphabet
+        // shapes into U+FE70..FEFF, and half the fonts on
+        // Windows carry the second block and not the
+        // first.
+        // ==========================================
+        private static readonly char[] JoiningProbeLetters = { 'پ', 'چ', 'ژ', 'ک', 'گ', 'ی', 'ب', 'س' };
+
+        private static void ReadJoining(byte[] data, DirectFontFileInfo info)
+        {
+            var present = new List<char>();
+            for (int i = 0; i < JoiningProbeLetters.Length; i++)
+            {
+                if (info.HasCodepoint(JoiningProbeLetters[i])) { present.Add(JoiningProbeLetters[i]); }
+            }
+
+            if (present.Count == 0)
+            {
+                info.ArabicJoining = DirectJoiningSupport.NotArabicScript;
+                return;
+            }
+
+            // The presentation forms first: a font that has them needs nothing
+            // derived, and saying so is more informative than "we could work
+            // it out".
+            bool everyFormPresent = true;
+            var unjoinable = new List<char>();
+
+            DirectJoinedGlyphs joined = DirectFontGsub.Read(data, present);
+            System.Func<char, bool> hasGlyph = c => info.HasCodepoint(c);
+
+            foreach (char letter in present)
+            {
+                // CanJoin rather than a raw form-by-form check, so a letter the
+                // shaper stands in for - ک and ی have Arabic shapes that are
+                // the same drawing - is not reported as a problem it will not
+                // actually cause.
+                if (DirectArabicShaper.CanJoin(letter, hasGlyph)) { continue; }
+                everyFormPresent = false;
+
+                // No forms in the font. Can its own rules produce them? A
+                // letter that joins on one side only - ژ, ر, و - has nothing
+                // to say about 'init', so asking for any joined shape at all
+                // is the right test.
+                bool canDerive = joined.Has(letter, DirectJoiningForm.Initial)
+                              || joined.Has(letter, DirectJoiningForm.Medial)
+                              || joined.Has(letter, DirectJoiningForm.Final);
+
+                if (!canDerive) { unjoinable.Add(letter); }
+            }
+
+            info.UnjoinableLetters = unjoinable.Count == 0
+                ? string.Empty
+                : string.Join(" ", unjoinable.ConvertAll(c => c.ToString()).ToArray());
+
+            if (unjoinable.Count > 0) { info.ArabicJoining = DirectJoiningSupport.LettersOnly; }
+            else if (everyFormPresent) { info.ArabicJoining = DirectJoiningSupport.PresentationForms; }
+            else { info.ArabicJoining = DirectJoiningSupport.OpenType; }
         }
 
         // ==========================================

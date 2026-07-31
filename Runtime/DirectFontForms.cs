@@ -81,6 +81,29 @@ namespace UnityDirectTMP
         /// <summary>True when this font needed no help - it had every form already.</summary>
         public bool NothingMissing { get; internal set; }
 
+        /// <summary>
+        /// One line per font asset tried - the label's own and every fallback
+        /// behind it - saying what became of each.
+        ///
+        /// This exists because the failure it describes is invisible: Persian
+        /// still comes out unjoined, exactly as it did before, and nothing
+        /// distinguishes "the font had nothing to give" from "the label is
+        /// drawing its Persian out of a fallback font this never looked at".
+        /// One line in the console settles it.
+        /// </summary>
+        public string Detail { get; internal set; } = string.Empty;
+
+        /// <summary>How many attempts have been made for this asset.</summary>
+        internal int Attempts { get; set; }
+
+        /// <summary>
+        /// True when trying again could plausibly give a different answer -
+        /// the atlas or the font face may simply not have been ready yet. A
+        /// font that has no joining rules will not grow any, and is not
+        /// retried.
+        /// </summary>
+        internal bool Retryable { get; set; }
+
         internal static readonly DirectFontFormsReport Empty = new DirectFontFormsReport();
     }
 
@@ -135,38 +158,148 @@ namespace UnityDirectTMP
         // ==========================================
         // TopUp
         //
-        // Idempotent and cached: the answer is a property
-        // of the font, and the question is asked whenever
-        // a label's font changes.
+        // Cached, because the answer is a property of the
+        // font and the question is asked whenever a
+        // label's font changes - but a FAILURE is not
+        // cached forever. The first Prepare of a label
+        // can happen before TextMeshPro has an atlas or
+        // the FontEngine has a face, and a top-up that
+        // failed for that reason would otherwise stay
+        // failed for the rest of the session.
         // ==========================================
+        private const int MaxAttempts = 4;
+
         /// <summary>
-        /// Adds to <paramref name="asset"/> every Arabic-script presentation
-        /// form it does not already have but whose glyph its own OpenType
-        /// tables can name. Returns what happened, and never throws.
+        /// Adds to <paramref name="asset"/> - and to every font behind it in
+        /// the fallback chain - each Arabic-script presentation form it does
+        /// not already have but whose glyph its own OpenType tables can name.
+        /// Returns what happened, and never throws.
         /// </summary>
         public static DirectFontFormsReport TopUp(TMP_FontAsset asset)
         {
             if (asset == null) { return DirectFontFormsReport.Empty; }
 
             int id = asset.GetInstanceID();
-            if (s_reports.TryGetValue(id, out DirectFontFormsReport cached)) { return cached; }
+            if (s_reports.TryGetValue(id, out DirectFontFormsReport cached)
+                && (!cached.Retryable || cached.Attempts >= MaxAttempts))
+            {
+                return cached;
+            }
 
-            var report = new DirectFontFormsReport { Attempted = true };
+            var report = new DirectFontFormsReport
+            {
+                Attempted = true,
+                Attempts = (cached?.Attempts ?? 0) + 1
+            };
             s_reports[id] = report;
 
             try
             {
-                Fill(asset, report);
+                Sweep(asset, report);
             }
             catch (Exception e)
             {
-                // Not a warning. This is an optimisation over the behaviour
-                // that already works, and a user whose font needs no help
-                // should never learn that it exists.
+                // Not a warning on its own. This is an improvement over
+                // behaviour that already works, and a user whose font needs no
+                // help should never learn that any of it exists.
                 report.Reason = e.Message;
+                report.Detail = e.Message;
             }
 
             return report;
+        }
+
+        // ==========================================
+        // The label's font, and everything behind it.
+        //
+        // A label whose own font has no Arabic at all -
+        // Segoe UI Semilight is one, and it is the
+        // default UI font on a lot of Windows machines -
+        // draws its Persian out of a FALLBACK. Topping up
+        // only the font the label names would then do
+        // nothing at all while looking like it had
+        // worked, because the font it examined was never
+        // the one drawing the letters.
+        //
+        // DirectText's own probe already searches the
+        // fallback chain. This has to search the same
+        // chain or the two disagree, and the shaper emits
+        // a form nobody can draw.
+        // ==========================================
+        private static void Sweep(TMP_FontAsset asset, DirectFontFormsReport report)
+        {
+            var seen = new HashSet<int>();
+            var lines = new System.Text.StringBuilder();
+            string joined = null;
+
+            foreach (TMP_FontAsset target in Chain(asset, seen))
+            {
+                var one = new DirectFontFormsReport { Attempted = true };
+
+                try { Fill(target, one); }
+                catch (Exception e) { one.Reason = e.Message; one.Retryable = true; }
+
+                report.FormsAdded += one.FormsAdded;
+                report.Retryable |= one.Retryable;
+
+                if (!string.IsNullOrEmpty(one.LettersJoined))
+                {
+                    joined = joined == null ? one.LettersJoined : joined + " " + one.LettersJoined;
+                }
+
+                if (lines.Length > 0) { lines.Append('\n'); }
+                lines.Append("  ").Append(target.name).Append(": ").Append(Describe(one));
+            }
+
+            report.LettersJoined = joined ?? string.Empty;
+            report.Detail = lines.ToString();
+            report.NothingMissing = report.FormsAdded == 0 && !report.Retryable;
+
+            if (report.FormsAdded == 0 && string.IsNullOrEmpty(report.Reason))
+            {
+                report.Reason = "No font in this label's fallback chain could supply the joined shapes.";
+            }
+        }
+
+        private static string Describe(DirectFontFormsReport one)
+        {
+            if (one.FormsAdded > 0)
+            {
+                return $"{one.FormsAdded} forms added for {one.LettersJoined}";
+            }
+            if (one.NothingMissing) { return "nothing missing"; }
+            return string.IsNullOrEmpty(one.Reason) ? "nothing to add" : one.Reason;
+        }
+
+        // The label's font first, then its own fallback table, then the
+        // project-wide ones TMP consults last. Same order TextMeshPro searches
+        // in, so the first font that can draw a letter is the first one topped
+        // up for it.
+        private static IEnumerable<TMP_FontAsset> Chain(TMP_FontAsset asset, HashSet<int> seen)
+        {
+            if (asset == null || !seen.Add(asset.GetInstanceID())) { yield break; }
+            yield return asset;
+
+            List<TMP_FontAsset> fallbacks = asset.fallbackFontAssetTable;
+            if (fallbacks != null)
+            {
+                for (int i = 0; i < fallbacks.Count; i++)
+                {
+                    foreach (TMP_FontAsset nested in Chain(fallbacks[i], seen)) { yield return nested; }
+                }
+            }
+
+            List<TMP_FontAsset> global = null;
+            try { global = TMP_Settings.fallbackFontAssets; }
+            catch { global = null; }
+
+            if (global != null)
+            {
+                for (int i = 0; i < global.Count; i++)
+                {
+                    foreach (TMP_FontAsset nested in Chain(global[i], seen)) { yield return nested; }
+                }
+            }
         }
 
         /// <summary>What the last top-up did for this asset, without starting one.</summary>
@@ -251,6 +384,7 @@ namespace UnityDirectTMP
             if (!LoadFace(asset))
             {
                 report.Reason = "The font face could not be opened for rasterizing.";
+                report.Retryable = true;
                 return;
             }
 
@@ -281,7 +415,15 @@ namespace UnityDirectTMP
 
             if (report.FormsAdded == 0)
             {
-                report.Reason = "The font names no joined glyphs for the letters it is missing forms for.";
+                // The GSUB named glyphs but not one of them could be
+                // rasterized - which usually means the atlas or the font face
+                // was not ready, not that the font is short of shapes. Worth
+                // asking again.
+                report.Reason = "The joined glyphs this font names could not be rasterized"
+                    + (ResolveGlyphAdder() == null
+                        ? " — this TextMeshPro version does not expose glyph-index rasterizing."
+                        : " yet.");
+                report.Retryable = ResolveGlyphAdder() != null;
                 return;
             }
 

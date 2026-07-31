@@ -289,6 +289,108 @@ namespace UnityDirectTMP.Editor.Tests
         }
 
         // ==========================================
+        // "Has Arabic" is not "can set Arabic"
+        //
+        // The distinction this whole verdict exists for.
+        // A coverage badge that goes green on ا ب پ says
+        // a font supports the script; Arial Unicode MS
+        // passes that test, cannot connect a single
+        // letter, and sets پروژه as five separate
+        // shapes. Somebody picked it, saw broken Persian,
+        // and had nothing anywhere telling them the font
+        // was why.
+        // ==========================================
+        private static readonly SyntheticFont.Range PresentationFormsA = new SyntheticFont.Range(0xFB50, 0xFBFF);
+        private static readonly SyntheticFont.Range PresentationFormsB = new SyntheticFont.Range(0xFE70, 0xFEFF);
+
+        [Test]
+        public void Joining_IsPresentationFormsWhenTheFontCarriesThemOutright()
+        {
+            byte[] font = SyntheticFont.BuildFormat4("Complete", "Regular", 8192,
+                ArabicBlock, PresentationFormsA, PresentationFormsB);
+
+            DirectFontFileInfo info = DirectFontFile.Parse(font);
+
+            Assert.AreEqual(DirectJoiningSupport.PresentationForms, info.ArabicJoining);
+            Assert.IsTrue(info.JoinsArabicScript);
+            Assert.IsEmpty(info.UnjoinableLetters);
+        }
+
+        [Test]
+        public void Joining_IsOpenTypeWhenTheFormsAreMissingButTheRulesAreNot()
+        {
+            // Segoe UI's situation, and the one 1.2.0 exists to rescue.
+            byte[] font = SyntheticFont.BuildWithGsub(
+                "Rules only", 8192, new[] { ArabicBlock }, "arab",
+                SyntheticFont.Substitution.Format1("init", 1000,
+                    Peh, Tcheh, Jeh, Keheh, Gaf, FarsiYeh, 'ب', 'س'));
+
+            DirectFontFileInfo info = DirectFontFile.Parse(font);
+
+            Assert.AreEqual(DirectJoiningSupport.OpenType, info.ArabicJoining);
+            Assert.IsTrue(info.JoinsArabicScript);
+            Assert.IsEmpty(info.UnjoinableLetters);
+        }
+
+        [Test]
+        public void Joining_IsLettersOnlyWhenTheFontHasNeither()
+        {
+            // The font the user actually had. Every Persian letter present,
+            // no way to connect any of them.
+            byte[] font = SyntheticFont.BuildFormat4("Arial Unicode-like", "Regular", 50000, ArabicBlock);
+
+            DirectFontFileInfo info = DirectFontFile.Parse(font);
+
+            Assert.AreEqual(DirectJoiningSupport.LettersOnly, info.ArabicJoining);
+            Assert.IsFalse(info.JoinsArabicScript);
+
+            foreach (char letter in Persian)
+            {
+                StringAssert.Contains(letter.ToString(), info.UnjoinableLetters);
+            }
+        }
+
+        [Test]
+        public void Joining_SaysNothingAboutAFontWithNoArabicInIt()
+        {
+            byte[] font = SyntheticFont.BuildFormat4("Latin only", "Regular", 512,
+                new SyntheticFont.Range('A', 'Z'));
+
+            DirectFontFileInfo info = DirectFontFile.Parse(font);
+
+            Assert.AreEqual(DirectJoiningSupport.NotArabicScript, info.ArabicJoining);
+            Assert.IsFalse(info.JoinsArabicScript);
+            Assert.IsEmpty(info.UnjoinableLetters);
+        }
+
+        [Test]
+        public void Joining_NamesOnlyTheLettersThatCannotBeJoined()
+        {
+            // Forms-B in full and no Forms-A: the alphabet joins, and exactly
+            // the letters that make it Persian do not. That is the shape of
+            // the original bug report, and the read-out has to say so rather
+            // than condemning the whole font.
+            byte[] font = SyntheticFont.BuildFormat4("Forms-B only", "Regular", 8192,
+                ArabicBlock, PresentationFormsB);
+
+            DirectFontFileInfo info = DirectFontFile.Parse(font);
+
+            Assert.AreEqual(DirectJoiningSupport.LettersOnly, info.ArabicJoining);
+
+            // پ چ ژ گ have no stand-in and are named.
+            StringAssert.Contains(Peh.ToString(), info.UnjoinableLetters);
+            StringAssert.Contains(Tcheh.ToString(), info.UnjoinableLetters);
+            StringAssert.Contains(Jeh.ToString(), info.UnjoinableLetters);
+            StringAssert.Contains(Gaf.ToString(), info.UnjoinableLetters);
+
+            // ک and ی do, and the rest of the alphabet was never in doubt.
+            StringAssert.DoesNotContain(Keheh.ToString(), info.UnjoinableLetters);
+            StringAssert.DoesNotContain(FarsiYeh.ToString(), info.UnjoinableLetters);
+            StringAssert.DoesNotContain("ب", info.UnjoinableLetters);
+            StringAssert.DoesNotContain("س", info.UnjoinableLetters);
+        }
+
+        // ==========================================
         // The alphabet the shaper and this file share
         // ==========================================
 

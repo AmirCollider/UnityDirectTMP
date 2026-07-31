@@ -14,6 +14,7 @@
 // fonts from disk, from memory, or from the player's
 // own system fonts.
 // ==========================================
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 
@@ -44,7 +45,30 @@ namespace UnityDirectTMP
         [Tooltip("The font file itself - a .ttf or .otf imported into your project. This is the default source.")]
         [SerializeField] private Font fontFile;
 
-        [Tooltip("Optional ordered fallback chain. The first font in the chain that has a given glyph supplies it.")]
+        // ==========================================
+        // More fonts.
+        //
+        // One font file rarely covers a real screen. A
+        // line like "پروژه‌ی 敵スポーナー 🎮" needs a
+        // Persian face, a Japanese face and an emoji
+        // face, and no single .ttf has all three - Noto
+        // ships them as separate files on purpose.
+        //
+        // Ordered, and the order is the answer: for every
+        // character, the first font in the list that
+        // actually has it supplies that glyph. Put the
+        // font whose design you want for the bulk of the
+        // text first.
+        //
+        // The reusable chain asset below does the same
+        // thing for fonts you want to line up once and
+        // use on twenty labels. These two are additive:
+        // this list is tried first, then the chain.
+        // ==========================================
+        [Tooltip("More fonts, tried in order after the one above. For every character the first font in the list that actually has it supplies that glyph — so one label can mix Persian, Japanese and emoji from three different files.")]
+        [SerializeField] private List<Font> moreFonts = new List<Font>();
+
+        [Tooltip("Optional ordered fallback chain asset, tried after the fonts above. Use it to line fonts up once and reuse them on many labels.")]
         [SerializeField] private DirectFontFallbackChain fallbackChain;
 
         [Tooltip("Keep this component's material look (outline, underlay, gradient…) when the font is (re)built, instead of resetting to the font's plain material.")]
@@ -194,11 +218,55 @@ namespace UnityDirectTMP
             Material previous = tmp.fontSharedMaterial;
             tmp.font = asset; // TMP switches fontSharedMaterial to the asset's material here.
 
-            if (fallbackChain != null) { fallbackChain.ApplyTo(asset, ResolvedSettings); }
+            ApplyFallbacks(asset);
             if (preserveMaterial && previous != null) { PreserveMaterial(previous, asset.material); }
 
             tmp.havePropertiesChanged = true;
             tmp.SetAllDirty();
+        }
+
+        // ==========================================
+        // ApplyFallbacks
+        //
+        // The inline list first, then the shared chain
+        // asset. Both feed one ordered table, because
+        // TextMeshPro searches exactly one.
+        //
+        // An empty result with nothing configured leaves
+        // the table alone rather than clearing it: a
+        // label whose fallbacks somebody set by hand, or
+        // in a prefab, should not lose them for having a
+        // DirectFont on it.
+        // ==========================================
+        private void ApplyFallbacks(TMP_FontAsset primary)
+        {
+            DirectFontSettings resolved = ResolvedSettings;
+            var chain = new List<TMP_FontAsset>();
+
+            for (int i = 0; i < moreFonts.Count; i++)
+            {
+                if (moreFonts[i] == null) { continue; }
+
+                TMP_FontAsset built = DirectFontLoader.FromFont(moreFonts[i], resolved);
+                if (built != null) { chain.Add(built); }
+            }
+
+            if (fallbackChain != null) { chain.AddRange(fallbackChain.Build(resolved)); }
+
+            if (chain.Count == 0 && fallbackChain == null) { return; }
+
+            DirectFontFallback.Apply(primary, chain);
+        }
+
+        /// <summary>
+        /// Replaces the inline list of extra fonts and rebuilds. Order is the
+        /// search order: the first font that has a character supplies it.
+        /// </summary>
+        public void SetMoreFonts(IEnumerable<Font> fonts)
+        {
+            moreFonts.Clear();
+            if (fonts != null) { moreFonts.AddRange(fonts); }
+            Apply();
         }
 
         private TMP_FontAsset BuildCurrent()

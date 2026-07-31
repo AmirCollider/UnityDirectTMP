@@ -59,7 +59,27 @@ alone next to `روژه`. That is the screenshot this release exists for.
   names which one failed and why — in English, 日本語 and فارسی, in the console
   and in the Inspector.
 
+- **A font that cannot set Persian now says so.** The coverage badges answer
+  "does this font contain Arabic letters", and a font can pass that and still
+  be useless: Arial Unicode MS carries every Persian letter, has no joined
+  shapes for any of them and no OpenType rules to derive some, and sets
+  `پروژه` as five separate letters no matter what any shaper does. Nothing
+  anywhere said so, so the tool looked broken and the font looked fine.
+  `DirectFontFile` now reports `ArabicJoining` — whether a font joins through
+  the presentation forms, through OpenType, or not at all — and names the
+  letters it cannot join. The Direct Font Inspector shows the verdict under
+  the badges, in all three languages.
+
 ### Added
+- **More Fonts** on `DirectFont` — an inline, ordered list of extra fonts, so
+  one label can set `پروژه‌ی 敵スポーナー 🎮` from three files. For every
+  character the first font in the list that has it supplies that glyph. It
+  needed a ScriptableObject before, which is the right tool for fonts you line
+  up once and reuse and the wrong one for "this label also needs emoji". Both
+  work, and both feed the same table: this list first, then the chain asset.
+  `SetMoreFonts(IEnumerable<Font>)` does it from code.
+- `DirectFontFileInfo.ArabicJoining`, `.UnjoinableLetters` and
+  `.JoinsArabicScript`, with `DirectJoiningSupport` — the verdict above.
 - `DirectFontGsub` — reads `GSUB`'s `isol` / `fina` / `init` / `medi` features
   for the Arabic script: lookup type 1 in both single-substitution formats,
   and type 7 extension lookups. Pure C#, bytes in and facts out, bounds-checked

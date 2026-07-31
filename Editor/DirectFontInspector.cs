@@ -33,6 +33,7 @@ namespace UnityDirectTMP.Editor
         private const float InspectorInset = 42f;
 
         private SerializedProperty fontFile;
+        private SerializedProperty moreFonts;
         private SerializedProperty fallbackChain;
         private SerializedProperty preserveMaterial;
         private SerializedProperty applyOnEnable;
@@ -46,6 +47,7 @@ namespace UnityDirectTMP.Editor
         private void OnEnable()
         {
             fontFile = serializedObject.FindProperty("fontFile");
+            moreFonts = serializedObject.FindProperty("moreFonts");
             fallbackChain = serializedObject.FindProperty("fallbackChain");
             preserveMaterial = serializedObject.FindProperty("preserveMaterial");
             applyOnEnable = serializedObject.FindProperty("applyOnEnable");
@@ -74,6 +76,13 @@ namespace UnityDirectTMP.Editor
                 "The .ttf or .otf glyphs are rasterized from. Import it as a Dynamic font so every character in the file is reachable.",
                 "グリフの生成元となる .ttf / .otf。ファイル内の全文字を使えるよう Dynamic でインポートしてください。",
                 "همون .ttf یا .otf که گلیف‌ها ازش ساخته می‌شن. حالت ایمپورتش رو Dynamic بذار تا هر کاراکتری که توی فایل هست در دسترس باشه."));
+
+            EditorGUILayout.PropertyField(moreFonts, DirectTMPText.C(
+                "More Fonts", "追加フォント", "فونت‌های بیشتر",
+                "More fonts, tried in order after the one above. For every character the first font that actually has it supplies that glyph — so one label can mix Persian, Japanese and emoji from three different files. No single font file has all three.",
+                "上のフォントに続けて、順に試される追加フォントです。1 文字ごとに、その文字を実際に持つ最初のフォントが使われます。ペルシア語・日本語・絵文字を 1 つのラベルで混在させられます(1 つのフォントファイルに 3 つとも入っていることはまずありません)。",
+                "فونت‌های بیشتر، به‌ترتیب و بعد از فونت بالا امتحان می‌شن. برای هر کاراکتر، اولین فونتی که واقعاً اون رو داشته باشه گلیفش رو می‌ده — یعنی یه لیبل می‌تونه هم‌زمان فارسی و ژاپنی و ایموجی داشته باشه. هیچ فونتی به‌تنهایی هر سه رو نداره."),
+                true);
 
             EditorGUILayout.PropertyField(fallbackChain, DirectTMPText.C(
                 "Fallback Chain", "フォールバックチェーン", "زنجیره‌ی فال‌بک",
@@ -229,7 +238,56 @@ namespace UnityDirectTMP.Editor
                 }
 
                 DirectTMPCoverageBadges.Draw(_fileInfo.Coverage());
+                DrawJoiningVerdict(_fileInfo);
             }
+        }
+
+        // ==========================================
+        // Can it JOIN what it contains?
+        //
+        // The coverage badges above answer "does this
+        // font have Arabic letters", and a font can pass
+        // that and still be unusable for Persian. Arial
+        // Unicode MS has fifty thousand glyphs, every
+        // Persian letter among them, and no way to
+        // connect any of them - so it lights up the
+        // Arabic badge green and sets پروژه as five
+        // separate letters.
+        //
+        // A user who picks that font sees broken Persian
+        // and has nothing anywhere telling them the font
+        // is why. This row is that thing.
+        // ==========================================
+        private static void DrawJoiningVerdict(DirectFontFileInfo info)
+        {
+            if (info.ArabicJoining == DirectJoiningSupport.NotArabicScript) { return; }
+
+            if (info.ArabicJoining == DirectJoiningSupport.LettersOnly)
+            {
+                DirectTMPBrand.Note(
+                    string.Format(
+                        DirectTMPText.Raw(
+                            "This font has {0} but cannot join them. It carries the letters and neither the joined shapes (U+FB50–FBFF / U+FE70–FEFF) nor OpenType joining rules to derive them from — so Persian set in it comes out as separate letters no matter what. That is the font, not the text. Pick another one for Persian, or add it to More Fonts above and put a Persian font first.",
+                            "このフォントには {0} が含まれていますが、接続できません。字自体はあるものの、接続字形(U+FB50–FBFF / U+FE70–FEFF)も、それを導出できる OpenType の接続規則も持っていないためです。したがって、このフォントで組んだペルシア語は必ず字が離れます。これはテキストではなくフォントの問題です。ペルシア語には別のフォントを使うか、上の「追加フォント」にペルシア語フォントを先に置いてください。",
+                            "این فونت {0} رو داره ولی نمی‌تونه بهم بچسبونتشون. نه شکل‌های چسبیده (U+FB50–FBFF / U+FE70–FEFF) رو داره نه قواعد اتصال OpenType که ازشون ساخته بشه — پس فارسیِ نوشته‌شده با این فونت هرکاری بکنی جدا‌جدا درمیاد. این ایرادِ فونته، نه ایرادِ متن. برای فارسی یه فونت دیگه بردار، یا توی «فونت‌های بیشتر» بالا یه فونت فارسی رو اول بذار."),
+                        DirectTMPText.Show(info.UnjoinableLetters)),
+                    DirectTMPBrand.NoteLevel.Warning,
+                    InspectorInset);
+                return;
+            }
+
+            DirectTMPBrand.Note(
+                info.ArabicJoining == DirectJoiningSupport.OpenType
+                    ? DirectTMPText.Raw(
+                        "Joins the Arabic script through its own OpenType rules. DirectTMP reads them and builds the joined shapes it needs.",
+                        "フォント自身の OpenType 規則でアラビア文字を接続します。DirectTMP がそれを読み取り、必要な接続字形を生成します。",
+                        "خط عربی رو با قواعد OpenType خودش می‌چسبونه. DirectTMP اون‌ها رو می‌خونه و شکل‌های چسبیده‌ی لازم رو می‌سازه.")
+                    : DirectTMPText.Raw(
+                        "Joins the Arabic script — it carries the joined shapes outright.",
+                        "アラビア文字を接続できます。接続字形をそのまま収録しています。",
+                        "خط عربی رو می‌چسبونه — شکل‌های چسبیده رو مستقیم داره."),
+                DirectTMPBrand.NoteLevel.Info,
+                InspectorInset);
         }
 
         // ==========================================
