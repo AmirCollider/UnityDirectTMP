@@ -301,10 +301,24 @@ namespace UnityDirectTMP
             if (from.shader != to.shader) { return; } // different shader family: leave the new look alone.
 
             // Snapshot the atlas-specific properties of the new material.
+            //
+            // The scale ratios belong on this list and were missing from it,
+            // which is a subtler bug than it looks. TextMeshPro derives them
+            // from the atlas's gradient scale, padding and sampling size, and
+            // the shader multiplies face dilation, weight and outline width by
+            // them. Copying another font's ratios over a font that was
+            // rasterized differently renders every stroke at the wrong weight
+            // - and the strokes that vanish first are the thinnest ones in the
+            // label, which in Persian are exactly the strokes that JOIN one
+            // letter to the next. The word does not come apart; its joins are
+            // drawn too faint to see, which looks identical.
             Texture atlas = to.HasProperty(ShaderUtilities.ID_MainTex) ? to.GetTexture(ShaderUtilities.ID_MainTex) : null;
             float texW = to.HasProperty(ShaderUtilities.ID_TextureWidth) ? to.GetFloat(ShaderUtilities.ID_TextureWidth) : 0f;
             float texH = to.HasProperty(ShaderUtilities.ID_TextureHeight) ? to.GetFloat(ShaderUtilities.ID_TextureHeight) : 0f;
             float gradient = to.HasProperty(ShaderUtilities.ID_GradientScale) ? to.GetFloat(ShaderUtilities.ID_GradientScale) : 0f;
+            float ratioA = to.HasProperty(ShaderUtilities.ID_ScaleRatio_A) ? to.GetFloat(ShaderUtilities.ID_ScaleRatio_A) : 0f;
+            float ratioB = to.HasProperty(ShaderUtilities.ID_ScaleRatio_B) ? to.GetFloat(ShaderUtilities.ID_ScaleRatio_B) : 0f;
+            float ratioC = to.HasProperty(ShaderUtilities.ID_ScaleRatio_C) ? to.GetFloat(ShaderUtilities.ID_ScaleRatio_C) : 0f;
 
             to.CopyPropertiesFromMaterial(from);
 
@@ -313,6 +327,9 @@ namespace UnityDirectTMP
             if (to.HasProperty(ShaderUtilities.ID_TextureWidth)) { to.SetFloat(ShaderUtilities.ID_TextureWidth, texW); }
             if (to.HasProperty(ShaderUtilities.ID_TextureHeight)) { to.SetFloat(ShaderUtilities.ID_TextureHeight, texH); }
             if (to.HasProperty(ShaderUtilities.ID_GradientScale)) { to.SetFloat(ShaderUtilities.ID_GradientScale, gradient); }
+            if (to.HasProperty(ShaderUtilities.ID_ScaleRatio_A)) { to.SetFloat(ShaderUtilities.ID_ScaleRatio_A, ratioA); }
+            if (to.HasProperty(ShaderUtilities.ID_ScaleRatio_B)) { to.SetFloat(ShaderUtilities.ID_ScaleRatio_B, ratioB); }
+            if (to.HasProperty(ShaderUtilities.ID_ScaleRatio_C)) { to.SetFloat(ShaderUtilities.ID_ScaleRatio_C, ratioC); }
         }
 
         // ==========================================

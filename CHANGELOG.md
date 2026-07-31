@@ -59,6 +59,16 @@ alone next to `روژه`. That is the screenshot this release exists for.
   names which one failed and why — in English, 日本語 and فارسی, in the console
   and in the Inspector.
 
+- **Preserving a label's material no longer renders its strokes at the wrong
+  weight.** `Preserve Material` copies the outline, underlay and gradient from
+  the old material onto the rebuilt one, and it was copying the shader's scale
+  ratios with them. TextMeshPro derives those from the atlas's gradient scale,
+  padding and sampling size, and the shader multiplies face dilation, weight
+  and outline width by them — so a label that had been showing another font,
+  or the same font rasterized differently, drew every stroke too thin. The
+  strokes that disappear first are the thinnest in the label, which in Persian
+  are the ones that JOIN one letter to the next: the word does not come apart,
+  its joins are drawn too faint to see, and the two look identical.
 - **A font that cannot set Persian now says so.** The coverage badges answer
   "does this font contain Arabic letters", and a font can pass that and still
   be useless: Arial Unicode MS carries every Persian letter, has no joined
