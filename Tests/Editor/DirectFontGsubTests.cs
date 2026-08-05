@@ -156,6 +156,78 @@ namespace UnityDirectTMP.Editor.Tests
             Assert.AreEqual((uint)SyntheticFont.GlyphFor(Peh), joined.NominalGlyph(Peh));
         }
 
+        // ==========================================
+        // "Covered, and substituted with itself" is an
+        // answer, not silence.
+        //
+        // A great many faces draw ر, ز, و and د identically
+        // standing alone and at the end of a word, so their
+        // 'fina' lookup names the letter and maps it to the same
+        // glyph. Reading that as "no final form" left U+FEAE
+        // unregistered in the font asset, the shaper then treated
+        // reh as a letter it could not join, and - because a
+        // letter that joins nothing tells its NEIGHBOURS not to
+        // reach for it - the ش before it dropped out of its
+        // initial shape too. "شروع" and "کردم" came apart; "قبر"
+        // and "صبر", where nothing follows the ر, did not.
+        // ==========================================
+        [Test]
+        public void Read_TreatsACoveredButUnchangedFormAsAForm()
+        {
+            const char Reh = 'ر';
+            byte[] font = SyntheticFont.BuildWithGsub(
+                "Reh final == reh isolated", 4096, new[] { ArabicBlock }, "arab",
+                // The font's own final reh, which happens to be its
+                // nominal glyph - delta 0.
+                SyntheticFont.Substitution.Format1("fina", 0, Reh),
+                SyntheticFont.Substitution.Format2("init", new[] { (int)Peh }, new[] { 900 }));
+
+            DirectJoinedGlyphs joined = DirectFontGsub.Read(font, new[] { Reh, Peh });
+
+            Assert.AreEqual((uint)SyntheticFont.GlyphFor(Reh), joined.GlyphIndex(Reh, DirectJoiningForm.Final),
+                "the font named reh in 'fina'; the glyph it named is the answer, moved or not");
+        }
+
+        // The counter-rule, and the reason the one above cannot
+        // simply record every letter for every wired feature: an
+        // 'init' lookup that covers only پ says nothing whatever
+        // about ب, and claiming otherwise would have the shaper
+        // emit a joined form no glyph exists for.
+        [Test]
+        public void Read_RecordsNothingForALetterAFeatureNeverCovered()
+        {
+            byte[] font = SyntheticFont.BuildWithGsub(
+                "init for peh only", 4096, new[] { ArabicBlock }, "arab",
+                SyntheticFont.Substitution.Format2("init", new[] { (int)Peh }, new[] { 900 }));
+
+            DirectJoinedGlyphs joined = DirectFontGsub.Read(font, Persian);
+
+            Assert.AreEqual(900u, joined.GlyphIndex(Peh, DirectJoiningForm.Initial));
+            Assert.AreEqual(0u, joined.GlyphIndex(Gaf, DirectJoiningForm.Initial));
+            Assert.AreEqual(0u, joined.GlyphIndex(Gaf, DirectJoiningForm.Medial));
+        }
+
+        // A self-substitution is a form, but it is not evidence
+        // that the font does any joining - so it must not be what
+        // makes HasJoiningFeatures true. A font whose Arabic
+        // script wires up nothing real still has to come back
+        // saying so, or DirectFontForms rasterizes a pile of
+        // plain glyphs under joined codepoints.
+        [Test]
+        public void Read_DoesNotCountASelfSubstitutionAsJoiningEvidence()
+        {
+            const char Reh = 'ر';
+            byte[] font = SyntheticFont.BuildWithGsub(
+                "fina that moves nothing", 4096, new[] { ArabicBlock }, "arab",
+                SyntheticFont.Substitution.Format1("fina", 0, Reh));
+
+            DirectJoinedGlyphs joined = DirectFontGsub.Read(font, new[] { Reh });
+
+            Assert.IsTrue(joined.IsValid, joined.Error);
+            Assert.IsFalse(joined.HasJoiningFeatures,
+                "nothing moved, so this font has demonstrated no joining");
+        }
+
         [Test]
         public void Read_LetsAnExplicitIsolFeatureWinOverTheNominalGlyph()
         {

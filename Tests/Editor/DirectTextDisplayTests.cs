@@ -119,6 +119,73 @@ namespace UnityDirectTMP.Editor.Tests
                 DirectArabicShaper.Shape("پگچژ"));
         }
 
+        // ==========================================
+        // A font with a HOLE in it, rather than a font
+        // without the block.
+        //
+        // The shaper asks, per form, whether the font can
+        // actually draw it - because a modern face built for a
+        // real shaping engine carries the plain letters and its
+        // joining rules in OpenType, with nothing at U+FE70, and
+        // shaping into a form it has no glyph for turns readable
+        // text into a row of boxes.
+        //
+        // The rule used to be all-or-nothing: one missing form
+        // and the whole letter went out plain. For a
+        // right-joining letter that is one missing codepoint out
+        // of two, and it did not stop at that letter - a letter
+        // that cannot be joined tells its NEIGHBOURS not to reach
+        // for it, so the letter before it dropped from its
+        // initial shape to its isolated one as well. A hole where
+        // reh's isolated form should be came out as a broken ش,
+        // and only in words where something follows the reh:
+        // شروع and کردم fell apart, قبر and صبر did not.
+        // ==========================================
+        [Test]
+        public void ALetterKeepsJoiningWhenOnlyItsIsolatedFormIsMissing()
+        {
+            // Everything except reh's isolated form (U+FEAD). Its final
+            // form is right there, and the word needs no other.
+            System.Func<char, bool> hasGlyph = c => c != '\uFEAD';
+
+            // شروع - sheen, reh, waw, ain. The sheen must stay INITIAL:
+            // it is joined to the reh after it.
+            Assert.AreEqual(
+                "\uFEB7\uFEAE\uFEED\uFEC9",
+                DirectArabicShaper.Shape("شروع", hasGlyph, null),
+                "the sheen joins forward to a reh the font can still draw joined");
+
+            Assert.IsTrue(DirectArabicShaper.CanJoin('ر', hasGlyph));
+        }
+
+        // Standing alone, that same reh has to be drawn with
+        // something - and the plain letter IS the isolated shape,
+        // so there is always an answer.
+        [Test]
+        public void AMissingIsolatedFormFallsBackToThePlainLetter()
+        {
+            System.Func<char, bool> hasGlyph = c => c != '\uFEAD';
+
+            Assert.AreEqual("ر", DirectArabicShaper.Shape("ر", hasGlyph, null));
+        }
+
+        // The old rule is still right for the case it was written
+        // for: a letter with no joined shape at all connects to
+        // nothing, and its neighbours must be told so rather than
+        // drawing a connecting stroke into empty space.
+        [Test]
+        public void ALetterWithNoJoinedFormAtAllStillStandsAlone()
+        {
+            // A font with the plain letters and none of the Arabic
+            // presentation block - which is most faces designed for a
+            // real shaping engine.
+            System.Func<char, bool> hasGlyph = c => !DirectArabicShaper.IsPresentationForm(c);
+
+            Assert.AreEqual("شروع", DirectArabicShaper.Shape("شروع", hasGlyph, null));
+            Assert.IsFalse(DirectArabicShaper.CanJoin('ر', hasGlyph));
+            Assert.IsFalse(DirectArabicShaper.CanJoin('ش', hasGlyph));
+        }
+
         [Test]
         public void EveryJoiningClassIsReportedCorrectly()
         {

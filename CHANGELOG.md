@@ -14,10 +14,26 @@ roadmap in the [README](README.md#-roadmap).
 - `.ttc` / `.otc` collection support with a face-index picker. The catalog
   already reports the face count and flags that only face 0 is used.
 - The rest of `GSUB`: contextual alternates and a font's full ligature set.
-  1.2.0 reads the joining features — `isol` / `fina` / `init` / `medi` — which
+  1.2.x reads the joining features — `isol` / `fina` / `init` / `medi` — which
   is what makes a letter connect; the remainder is what makes it beautiful.
 - Colour & emoji fonts (COLR / CBDT).
 - Variable font axes — weight, width, slant.
+
+## [1.2.1] - 2026-08-05
+
+Two bugs, both of which broke something a long way from where they lived.
+
+### Fixed
+
+- **A gap in a font for one letter came out as a broken *neighbour*, and ر took the blame.** Deciding which presentation forms to shape into was all-or-nothing: if a font could not draw every form a letter has, the letter went out as the bare character. That is the right answer when a font has none of them — a letter drawn plainly connects to nothing, and its neighbours are told so rather than drawing a connecting stroke into empty space. It is the wrong answer for a font with a *hole* in it, and it did not stop at the letter with the hole: a letter that cannot be joined tells the letters around it not to reach for it, so the one before it silently dropped from its initial shape to its isolated one too.
+
+  A right-joining letter — ر ز و د ذ ژ ا — has only two forms, so a single missing codepoint disqualified it. That is why the reports were all about ر: in **شروع** and **کردم**, where a letter follows the ر, the ش and the ک lost their initial shape and the word came apart; in **قبر** and **صبر**, where nothing follows it, there was no following letter to break and the word looked fine.
+
+  A complete set is still preferred, and still preferred wholesale — ی's own forms are dotted and its stand-in's final form is the dotless alef maksura, so mixing the two spells one letter two ways in one word. But when neither set is complete, the shaper now fills the set slot by slot instead of giving up, and the isolated slot can always be filled: the plain letter *is* the isolated shape. Only a letter with no joined form at all still stands alone.
+
+- **A font whose final reh is its ordinary reh reported no final reh at all.** Many faces draw ر, ز, و and د identically standing alone and at the end of a word, so their `fina` lookup names the letter and substitutes it with itself. `DirectFontGsub` read a substitution that moved nothing as no substitution, `DirectFontForms` therefore never registered U+FEAE, and the shaper hit exactly the hole described above. Coverage is now tracked separately from movement: a letter the font *names* in a joining feature has that form, whether or not the glyph changed. A self-substitution still does not count as evidence that a font does any joining, so a font that wires nothing real to the Arabic script comes back saying so, as before.
+
+- **Turning on Outline for one label outlined every label using the same font.** A font asset built from a file is cached per file, so twenty labels using `Vazir.ttf` share one `TMP_FontAsset` — and therefore share its one material, and everything written to it. That is what a shared material means; it became a trap here because `DirectFont` is what put twenty labels on one material in the first place and left them no per-label material to edit. Each label now gets its own copy of the font's material, made up front rather than on first edit — by the time somebody ticks Outline it is far too late to start instancing — and destroyed with the label. The new **Per-Label Material** toggle turns it off for a screenful of labels that genuinely are meant to look identical and change together, which batches better.
 
 ## [1.2.0] - 2026-07-30
 

@@ -147,10 +147,31 @@ namespace UnityDirectTMP
         /// </summary>
         internal void Set(char letter, DirectJoiningForm form, uint glyph)
         {
+            Set(letter, form, glyph, true);
+        }
+
+        /// <summary>
+        /// The same, for a form the font's Arabic features COVER but do not
+        /// move the glyph for.
+        ///
+        /// That is a real answer, not the absence of one. A great many faces
+        /// draw ر, ز, و and د identically standing alone and at the end of a
+        /// word, so their 'fina' lookup names the letter and substitutes it
+        /// with itself. Reading that as "this font has no final reh" left the
+        /// presentation codepoint U+FEAE unregistered, which made the shaper
+        /// treat reh as unjoinable, which dropped the letter BEFORE it out of
+        /// its initial shape. One honest non-substitution, two broken letters.
+        ///
+        /// <paramref name="moved"/> is false for those, so they never count
+        /// towards <see cref="Substitutions"/>: a font that wires no joining
+        /// features to Arabic at all must still come back saying so.
+        /// </summary>
+        internal void Set(char letter, DirectJoiningForm form, uint glyph, bool moved)
+        {
             if (glyph == 0 || !_glyphs.TryGetValue(letter, out uint[] forms)) { return; }
 
             forms[(int)form] = glyph;
-            Substitutions++;
+            if (moved) { Substitutions++; }
         }
 
         /// <summary>
@@ -337,6 +358,14 @@ namespace UnityDirectTMP
             // swaps in its own kaf - ends up where the font meant it to.
             var current = new Dictionary<char, uint>[4];
 
+            // Which letters each form's lookups actually COVERED, whether
+            // or not the substitution moved the glyph. A font whose final
+            // reh is drawn with the same glyph as its isolated reh - which
+            // is most of them - covers reh in 'fina' and substitutes it
+            // with itself, and that is the font saying "this is my final
+            // reh", not the font saying nothing.
+            var covered = new HashSet<char>[4];
+
             for (int i = 0; i < featureCount; i++)
             {
                 if (!wanted.Contains(i)) { continue; }
@@ -353,6 +382,7 @@ namespace UnityDirectTMP
                 if (feature + 4 + (lookupCount * 2) > data.Length) { continue; }
 
                 current[form] = current[form] ?? new Dictionary<char, uint>(nominal);
+                covered[form] = covered[form] ?? new HashSet<char>();
 
                 for (int k = 0; k < lookupCount; k++)
                 {
@@ -360,7 +390,7 @@ namespace UnityDirectTMP
                     int lookup = ResolveLookup(data, lookupList, index);
                     if (lookup < 0) { continue; }
 
-                    ApplyLookup(data, lookup, current[form]);
+                    ApplyLookup(data, lookup, current[form], covered[form]);
                 }
             }
 
@@ -370,12 +400,13 @@ namespace UnityDirectTMP
 
                 foreach (KeyValuePair<char, uint> letter in current[form])
                 {
-                    // Only a glyph the font actually moved is a joined form.
-                    // Where nothing moved, the plain glyph is the answer -
-                    // which is already recorded as the isolated form.
-                    if (letter.Value == nominal[letter.Key]) { continue; }
+                    bool moved = letter.Value != nominal[letter.Key];
 
-                    result.Set(letter.Key, (DirectJoiningForm)form, letter.Value);
+                    // A letter the feature never touched has no form here -
+                    // an 'init' lookup covering only پ says nothing about ب.
+                    if (!moved && (covered[form] == null || !covered[form].Contains(letter.Key))) { continue; }
+
+                    result.Set(letter.Key, (DirectJoiningForm)form, letter.Value, moved);
                 }
             }
 
@@ -477,7 +508,8 @@ namespace UnityDirectTMP
         // one the font draws - so the rule is not a
         // detail.
         // ==========================================
-        private static void ApplyLookup(byte[] data, int lookup, Dictionary<char, uint> current)
+        private static void ApplyLookup(
+            byte[] data, int lookup, Dictionary<char, uint> current, HashSet<char> covered)
         {
             if (lookup < 0 || lookup + 6 > data.Length) { return; }
 
@@ -510,7 +542,16 @@ namespace UnityDirectTMP
                 CollectSingleSubstitution(data, subtable, byGlyph, applied);
             }
 
-            foreach (KeyValuePair<char, uint> letter in applied) { current[letter.Key] = letter.Value; }
+            foreach (KeyValuePair<char, uint> letter in applied)
+            {
+                current[letter.Key] = letter.Value;
+
+                // Covered counts even when the glyph did not move. The
+                // font named this letter in this joining feature, and
+                // that is the fact the caller needs - see
+                // DirectJoinedGlyphs.Set(char, form, uint, bool).
+                if (covered != null) { covered.Add(letter.Key); }
+            }
         }
 
         private static void CollectSingleSubstitution(

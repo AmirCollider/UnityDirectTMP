@@ -439,27 +439,53 @@ namespace UnityDirectTMP
             return output.ToString();
         }
 
+        /// <summary>Index of the isolated form in a four-form array.</summary>
+        private const int Isolated = 0;
+
         // ==========================================
         // Which shapes this font can draw this letter
-        // with: its own, its stand-in's, or neither.
+        // with: its own, its stand-in's, or a mix - and
+        // only then nothing.
         //
-        // All four forms are required, not the one being
-        // asked for. A letter drawn from two different
-        // sets in two different words is worse than a
-        // letter drawn plainly in both, and a font with
-        // half a block is a font to stay out of.
+        // A COMPLETE set is preferred, and preferred
+        // wholesale, because the two sets are drawn by two
+        // different designs: ی's own forms are dotted and
+        // its stand-in's final form is the dotless alef
+        // maksura, so a word taking the isolated shape from
+        // one and the final shape from the other grows and
+        // loses dots between two spellings of the same
+        // letter.
+        //
+        // But "no complete set" is not the same as "cannot
+        // be joined", and treating it that way was a real
+        // bug with a name attached: ر. A right-joining
+        // letter has only two forms, so ONE missing
+        // presentation codepoint - the isolated one, say,
+        // where the final one is right there - disqualified
+        // the whole letter. It then went out as the plain
+        // character, EffectiveJoining reported it as joining
+        // nothing, and the letter BEFORE it dropped from its
+        // initial shape to its isolated one to match. So a
+        // gap in the font for ر came out as a broken ش, and
+        // "شروع" and "کردم" - words where ر has a letter
+        // after it - fell apart while "قبر" and "صبر", where
+        // it does not, looked fine. One letter's missing
+        // glyph, two letters wrong, and the wrong one blamed.
+        //
+        // The last resort therefore fills the set per slot,
+        // and the isolated slot can always be filled: the
+        // plain letter IS the isolated shape. Only a letter
+        // with no joined form at all still gives up.
         // ==========================================
         private static char[] FormsToUse(char c, char[] forms, System.Func<char, bool> hasGlyph)
         {
             if (hasGlyph == null) { return forms; }
             if (Complete(forms, hasGlyph)) { return forms; }
 
-            if (Alternates.TryGetValue(c, out char[] alternate) && Complete(alternate, hasGlyph))
-            {
-                return alternate;
-            }
+            Alternates.TryGetValue(c, out char[] alternate);
+            if (alternate != null && Complete(alternate, hasGlyph)) { return alternate; }
 
-            return null;
+            return Salvage(c, forms, alternate, hasGlyph);
         }
 
         private static bool Complete(char[] forms, System.Func<char, bool> hasGlyph)
@@ -469,6 +495,64 @@ namespace UnityDirectTMP
                 if (forms[i] != '\0' && !hasGlyph(forms[i])) { return false; }
             }
             return true;
+        }
+
+        // ==========================================
+        // Salvage
+        // The best set this font can actually draw, slot by
+        // slot: the letter's own form, then its stand-in's,
+        // then - for the isolated slot only - the plain
+        // letter.
+        //
+        // Null when not one JOINED form survived, which is
+        // the case the old all-or-nothing rule was written
+        // for and still the right answer: a letter drawn
+        // only as itself connects to nothing, its neighbours
+        // are told so by EffectiveJoining, and a word of
+        // plain letters beats a word with connecting strokes
+        // reaching into empty space.
+        //
+        // A '\0' left in a joined slot is safe: Pick already
+        // steps down through the forms it was given and ends
+        // at the isolated one, which this method guarantees.
+        // ==========================================
+        private static char[] Salvage(char c, char[] forms, char[] alternate, System.Func<char, bool> hasGlyph)
+        {
+            // The cheap question first, because for the most common
+            // font in Persian work the answer is no and there is
+            // nothing to build. A face designed for a real shaping
+            // engine - Vazirmatn, Noto Sans Arabic - carries the plain
+            // letters and its joining rules in OpenType and nothing at
+            // U+FE70 at all, so every letter of every string reaches
+            // here. Allocating a four-char array each time to discover
+            // that would be one allocation per letter per text change.
+            bool anyJoined = false;
+            for (int i = Isolated + 1; i < 4 && !anyJoined; i++)
+            {
+                if (forms[i] == '\0') { continue; }
+                anyJoined = hasGlyph(forms[i])
+                    || (alternate != null && alternate[i] != '\0' && hasGlyph(alternate[i]));
+            }
+
+            if (!anyJoined) { return null; }
+
+            var usable = new char[4];
+            for (int i = 0; i < 4; i++)
+            {
+                if (forms[i] == '\0') { continue; }
+
+                if (hasGlyph(forms[i])) { usable[i] = forms[i]; }
+                else if (alternate != null && alternate[i] != '\0' && hasGlyph(alternate[i])) { usable[i] = alternate[i]; }
+            }
+
+            // The one slot that can never be empty. We are only here
+            // because the text contains this letter, so the font is
+            // being asked to draw it either way - and the shape it
+            // draws for the bare codepoint is, by definition, the
+            // isolated one.
+            if (usable[Isolated] == '\0') { usable[Isolated] = c; }
+
+            return usable;
         }
 
         /// <summary>

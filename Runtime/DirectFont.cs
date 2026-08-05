@@ -74,6 +74,35 @@ namespace UnityDirectTMP
         [Tooltip("Keep this component's material look (outline, underlay, gradient…) when the font is (re)built, instead of resetting to the font's plain material.")]
         [SerializeField] private bool preserveMaterial = true;
 
+        // ==========================================
+        // Per-label material.
+        //
+        // A font asset built from a file is CACHED per file, so
+        // twenty labels using Vazir.ttf share one TMP_FontAsset -
+        // and therefore share its one material. Everything a
+        // material carries is then shared with them: switch Outline
+        // on for one label in the Inspector and every label in the
+        // scene using that font gets an outline. Nothing says so,
+        // nothing undoes it, and the label you were editing looks
+        // exactly as intended.
+        //
+        // That is not TextMeshPro being awkward; it is what a
+        // shared material means. It only becomes a trap here
+        // because this component is what put twenty labels on one
+        // material in the first place, and left them no per-label
+        // material to edit.
+        //
+        // So each label gets its own instance of the font's
+        // material, and the Inspector edits that. The cost is
+        // draw-call batching between labels that could otherwise
+        // have shared one material - real, and worth it against a
+        // change that silently repaints a scene. Turn it off for a
+        // screenful of labels that genuinely are meant to look
+        // identical and change together.
+        // ==========================================
+        [Tooltip("Give this label its own copy of the font's material, so outline / underlay / gradient changes stay on THIS label. Off means every label using the same font file shares one material — and one outline.")]
+        [SerializeField] private bool perLabelMaterial = true;
+
         [Tooltip("Build and apply the font automatically whenever this component is enabled.")]
         [SerializeField] private bool applyOnEnable = true;
 
@@ -93,6 +122,14 @@ namespace UnityDirectTMP
         [System.NonSerialized] private byte[] runtimeBytes;
         [System.NonSerialized] private string runtimeSystemFont;
         [System.NonSerialized] private TMP_FontAsset builtAsset;
+
+        // The material instance this component made for this label, if
+        // any. Not serialized - it is rebuilt from the font asset on
+        // every enable, exactly as the font asset itself is - and
+        // destroyed when it is replaced or when the label goes away,
+        // so a scene full of DirectFont labels does not leak one
+        // material per label per domain reload.
+        [System.NonSerialized] private Material ownedMaterial;
 
         private TMP_Text cachedText;
 
@@ -219,10 +256,95 @@ namespace UnityDirectTMP
             tmp.font = asset; // TMP switches fontSharedMaterial to the asset's material here.
 
             ApplyFallbacks(asset);
-            if (preserveMaterial && previous != null) { PreserveMaterial(previous, asset.material); }
+            ApplyMaterial(tmp, asset, previous);
 
             tmp.havePropertiesChanged = true;
             tmp.SetAllDirty();
+        }
+
+        // ==========================================
+        // ApplyMaterial
+        //
+        // Which material this label ends up rendering with, and -
+        // the part that matters - whether anything written to it
+        // can reach any other label.
+        //
+        // The font asset is cached per font file, so its material
+        // belongs to every label using that file. Writing this
+        // label's look onto it is how switching Outline on for one
+        // Persian caption outlined every Persian caption in the
+        // scene.
+        // ==========================================
+        private void ApplyMaterial(TMP_Text tmp, TMP_FontAsset asset, Material previous)
+        {
+            Material shared = asset.material;
+            if (shared == null) { return; }
+
+            if (!perLabelMaterial)
+            {
+                // Opted out: the old behaviour, shared material and all.
+                // Kept because a screenful of labels that are meant to
+                // look identical and change together is a real thing to
+                // want, and it batches.
+                ReleaseOwnedMaterial();
+                if (preserveMaterial && previous != null) { PreserveMaterial(previous, shared); }
+                return;
+            }
+
+            // A copy, not the cached asset's own. Made even when there
+            // is nothing to preserve yet: the point is that the
+            // material the Inspector is about to edit belongs to this
+            // label, and by the time somebody ticks Outline it is far
+            // too late to start instancing.
+            var instance = new Material(shared)
+            {
+                name = shared.name + " (" + gameObject.name + ")",
+                hideFlags = HideFlags.DontSave
+            };
+
+            // The look comes from whatever this label was rendering
+            // with a moment ago - its own previous instance across a
+            // rebuild, or a material somebody assigned by hand. Copying
+            // from the shared material would be copying the instance's
+            // own starting point back over itself.
+            if (preserveMaterial && previous != null && previous != shared)
+            {
+                PreserveMaterial(previous, instance);
+            }
+
+            ReleaseOwnedMaterial();
+            ownedMaterial = instance;
+            tmp.fontSharedMaterial = instance;
+        }
+
+        private void ReleaseOwnedMaterial()
+        {
+            if (ownedMaterial == null) { return; }
+
+            Material stale = ownedMaterial;
+            ownedMaterial = null;
+
+            // DestroyImmediate outside play mode: a material created in
+            // edit mode is never collected by Destroy(), which defers to
+            // the end of a frame that an Editor pass does not have.
+            if (Application.isPlaying) { Destroy(stale); }
+            else { DestroyImmediate(stale); }
+        }
+
+        private void OnDestroy()
+        {
+            // Hand the label back to the font asset's own material
+            // first. Removing just this component leaves the TMP_Text
+            // behind, and a TMP_Text pointing at a material that was
+            // destroyed a line ago renders magenta - which looks like a
+            // shader problem and is not one.
+            if (ownedMaterial != null && cachedText != null && cachedText.fontSharedMaterial == ownedMaterial)
+            {
+                TMP_FontAsset asset = cachedText.font;
+                if (asset != null && asset.material != null) { cachedText.fontSharedMaterial = asset.material; }
+            }
+
+            ReleaseOwnedMaterial();
         }
 
         // ==========================================

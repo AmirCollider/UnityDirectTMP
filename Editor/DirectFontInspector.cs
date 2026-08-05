@@ -36,6 +36,7 @@ namespace UnityDirectTMP.Editor
         private SerializedProperty moreFonts;
         private SerializedProperty fallbackChain;
         private SerializedProperty preserveMaterial;
+        private SerializedProperty perLabelMaterial;
         private SerializedProperty applyOnEnable;
         private SerializedProperty shapeText;
         private SerializedProperty overrideSettings;
@@ -50,6 +51,7 @@ namespace UnityDirectTMP.Editor
             moreFonts = serializedObject.FindProperty("moreFonts");
             fallbackChain = serializedObject.FindProperty("fallbackChain");
             preserveMaterial = serializedObject.FindProperty("preserveMaterial");
+            perLabelMaterial = serializedObject.FindProperty("perLabelMaterial");
             applyOnEnable = serializedObject.FindProperty("applyOnEnable");
             shapeText = serializedObject.FindProperty("shapeText");
             overrideSettings = serializedObject.FindProperty("overrideSettings");
@@ -97,6 +99,12 @@ namespace UnityDirectTMP.Editor
                 "Keep this label's outline, underlay, gradient and softness when the font is rebuilt. Off means the label resets to the font's plain material every time.",
                 "フォント再構築時に、このラベルのアウトライン・Underlay・グラデーション・ソフトネスを維持します。オフにすると、毎回フォント既定のマテリアルに戻ります。",
                 "موقع ساخته شدن دوباره‌ی فونت، Outline و Underlay و گرادیان و نرمی همین لیبل حفظ می‌شه. اگه خاموش باشه، هر بار به متریال ساده‌ی فونت برمی‌گرده."));
+
+            EditorGUILayout.PropertyField(perLabelMaterial, DirectTMPText.C(
+                "Per-Label Material", "ラベルごとのマテリアル", "متریال مخصوص همین لیبل",
+                "Give this label its own copy of the font's material. A font built from a file is shared by every label using that file, so without this, switching Outline on for one label outlines every label using the same font. Off shares one material (and one outline) between them, which batches better.",
+                "このラベル専用のマテリアルコピーを持たせます。ファイルから構築したフォントは同じファイルを使う全ラベルで共有されるため、オフのままだと 1 つのラベルで Outline を有効にした瞬間、同じフォントの全ラベルにアウトラインが付きます。オフにすると 1 つのマテリアル(と 1 つのアウトライン)を共有し、バッチングは有利になります。",
+                "یه کپی از متریال فونت مخصوص همین لیبل می‌سازه. فونتی که از روی فایل ساخته می‌شه بین همه‌ی لیبل‌هایی که همون فایل رو دارن مشترکه، پس بدون این گزینه، به‌محض اینکه روی یک لیبل Outline رو روشن کنی همه‌ی لیبل‌های اون فونت Outline می‌گیرن. خاموش یعنی همه یک متریال (و یک Outline) مشترک دارن که برای batching بهتره."));
 
             EditorGUILayout.PropertyField(applyOnEnable, DirectTMPText.C(
                 "Apply On Enable", "有効時に適用", "اعمال هنگام فعال شدن",
