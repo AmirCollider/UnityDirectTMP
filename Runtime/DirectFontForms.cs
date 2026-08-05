@@ -96,6 +96,38 @@ namespace UnityDirectTMP
         /// <summary>How many attempts have been made for this asset.</summary>
         internal int Attempts { get; set; }
 
+        // ==========================================
+        // Every presentation codepoint this pass actually put into
+        // a font asset.
+        //
+        // The shaper asks TextMeshPro whether a form is drawable,
+        // and TMP is the right authority for a form that came out
+        // of the font's own cmap. It is NOT the right authority for
+        // one that got here by being rasterized by glyph index and
+        // written into the character table by hand: HasCharacter
+        // can still answer no for reasons that have nothing to do
+        // with this glyph - a full atlas, a lookup table rebuilt
+        // between the two calls - and a no there does not merely
+        // lose that letter, it un-joins the letter beside it.
+        //
+        // We put the glyph there. We know it is drawable.
+        // ==========================================
+        private readonly HashSet<char> _registered = new HashSet<char>();
+
+        internal void MarkRegistered(char codepoint) { _registered.Add(codepoint); }
+
+        internal void MergeRegistered(DirectFontFormsReport other)
+        {
+            if (other == null) { return; }
+            foreach (char c in other._registered) { _registered.Add(c); }
+        }
+
+        /// <summary>True when this pass registered that presentation form itself.</summary>
+        public bool Supplied(char codepoint)
+        {
+            return _registered.Count > 0 && _registered.Contains(codepoint);
+        }
+
         /// <summary>
         /// True when trying again could plausibly give a different answer -
         /// the atlas or the font face may simply not have been ready yet. A
@@ -241,6 +273,7 @@ namespace UnityDirectTMP
 
                 report.FormsAdded += one.FormsAdded;
                 report.Retryable |= one.Retryable;
+                report.MergeRegistered(one);
 
                 if (!string.IsNullOrEmpty(one.LettersJoined))
                 {
@@ -381,6 +414,23 @@ namespace UnityDirectTMP
                 return;
             }
 
+            // A static font asset holds a baked atlas and refuses to
+            // grow, so not one of the glyphs below can be added to it.
+            // Worth naming rather than letting every Register call fail
+            // in turn and reporting "could not be rasterized yet": one
+            // of those is a condition that may pass, and the other is a
+            // property of the asset that will never change on its own.
+            // This is also the likeliest reason a project sees Persian
+            // come out unjoined while a font that plainly contains the
+            // letters is assigned - and it is invisible from the scene.
+            if (asset.atlasPopulationMode == AtlasPopulationMode.Static)
+            {
+                report.Reason = "This font asset is Static, so no joined shapes can be added to it. "
+                    + "Rebuild it as Dynamic, assign the .ttf/.otf through a Direct Font component, "
+                    + "or include U+FB50-FDFF and U+FE70-FEFF in its character set.";
+                return;
+            }
+
             if (!LoadFace(asset))
             {
                 report.Reason = "The font face could not be opened for rasterizing.";
@@ -404,6 +454,7 @@ namespace UnityDirectTMP
 
                     if (!Register(asset, missing[f], glyphIndex)) { continue; }
 
+                    report.MarkRegistered(missing[f]);
                     report.FormsAdded++;
                     any = true;
                 }

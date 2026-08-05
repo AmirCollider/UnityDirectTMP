@@ -19,6 +19,22 @@ roadmap in the [README](README.md#-roadmap).
 - Colour & emoji fonts (COLR / CBDT).
 - Variable font axes — weight, width, slant.
 
+## [1.2.2] - 2026-08-05
+
+The word is the unit, not the letter.
+
+### Fixed
+
+- **One letter's missing glyph still changed the shape of the letter beside it.** 1.2.1 stopped an incomplete form set from disqualifying a letter outright, which was necessary and not sufficient: when a form genuinely is unavailable, the letter reports itself as joining nothing, and every joining decision here reads its neighbours — so the letter *before* it drops out of its initial or medial shape to match. The word then comes apart at a letter that is perfectly fine, and the one that gets blamed is the wrong one. ر has only two forms, so it is the letter a gap most often lands on, which is why every report named ر and none named the ش or the ک that actually changed.
+
+  [RTLTMPro](https://github.com/pnarimani/RTLTMPro) does not have this problem, and comparing the two says exactly why: its joining rules for ر are identical to these, and it never asks the font anything. It emits the presentation forms unconditionally. That is not an option here — a face built for a real shaping engine has none of those codepoints and would draw a row of boxes — but it does say where the line belongs. The question is now asked **once per word** instead of once per letter: a run the font can join all the way through is shaped, a run it cannot is left exactly as typed, and no letter's missing glyph can ever alter a letter that has one. Other words on the same label are unaffected, so one exotic letter cannot flatten a paragraph.
+
+- **The shaper doubted glyphs this package had itself installed.** `DirectFontForms` rasterizes a joined shape by glyph index and writes it into the font asset's character table; the shaper then asked `TMP_FontAsset.HasCharacter` whether it was there. TextMeshPro is the right authority for a codepoint that came out of the font's own cmap and the wrong one for a codepoint we put there by hand — it can answer no for reasons that have nothing to do with the glyph — and a no was never confined to one letter. Forms this package supplied are now known to be present without a second opinion.
+
+- **A top-up that succeeded on the second attempt was never believed.** The first pass for a label can run before TextMeshPro has an atlas or the FontEngine has a face, and fail for that reason alone. `TopUp` retried; the per-label probe cache did not, so a form that arrived later stayed remembered as missing for the rest of the session.
+
+- **A Static font asset failed silently, one glyph at a time.** It cannot grow, so no joined shape can be added to it — which is the likeliest reason a project sees Persian come out unjoined while a font that plainly contains the letters is assigned, and it was invisible from the scene. It is now named, with what to do about it: rebuild the asset as Dynamic, assign the `.ttf`/`.otf` through a Direct Font component, or include U+FB50–FDFF and U+FE70–FEFF in its character set.
+
 ## [1.2.1] - 2026-08-05
 
 Two bugs, both of which broke something a long way from where they lived.

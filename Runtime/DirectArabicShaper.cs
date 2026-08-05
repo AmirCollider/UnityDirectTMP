@@ -372,6 +372,10 @@ namespace UnityDirectTMP
                 return text;
             }
 
+            // Which stretches of this text the font cannot join ALL of.
+            // Null when there are none, which is the ordinary case.
+            bool[] leavePlain = UnjoinableRuns(text, hasGlyph);
+
             var output = new StringBuilder(text.Length);
 
             for (int i = 0; i < text.Length; i++)
@@ -382,6 +386,15 @@ namespace UnityDirectTMP
                 // character while the forms below were chosen. It has no
                 // glyph worth keeping afterwards.
                 if (c == ZeroWidthNonJoiner) { continue; }
+
+                // A word this font cannot join all the way through is left
+                // exactly as it was typed - see UnjoinableRuns.
+                if (leavePlain != null && leavePlain[i])
+                {
+                    output.Append(c);
+                    if (sourceIndices != null) { sourceIndices.Add(i); }
+                    continue;
+                }
 
                 if (!Forms.TryGetValue(c, out char[] forms))
                 {
@@ -441,6 +454,88 @@ namespace UnityDirectTMP
 
         /// <summary>Index of the isolated form in a four-form array.</summary>
         private const int Isolated = 0;
+
+        // ==========================================
+        // UnjoinableRuns
+        // The word is the unit, not the letter.
+        //
+        // Every joining decision here reads its neighbours, so one
+        // letter the font cannot draw joined does not stop at that
+        // letter: it reports itself as joining nothing, and the
+        // letter BEFORE it drops out of its initial or medial shape
+        // to match. The word then comes apart at a letter that
+        // looks fine, and the letter that gets blamed is the wrong
+        // one. That is the whole content of the "ر will not attach
+        // to the letter before it" report - ر has only two forms,
+        // so it is the letter a gap in a font is most likely to
+        // land on, and the damage always showed up on its
+        // neighbour.
+        //
+        // RTLTMPro, which sets Persian correctly with the same
+        // joining rules this file uses, does not have the problem
+        // because it never asks the font anything: it emits the
+        // presentation forms unconditionally and expects the font
+        // asset to carry them. That is not an option here - a face
+        // built for a real shaping engine has none of those
+        // codepoints, and emitting them would draw a row of boxes -
+        // but it does say where the line belongs.
+        //
+        // So the question is asked once per WORD instead of once
+        // per letter. A run the font can join all the way through
+        // is shaped; a run it cannot is left exactly as typed.
+        // Either way the run is internally consistent, and no
+        // letter's missing glyph can ever change the shape of a
+        // letter that has one.
+        //
+        // Returns null when every run is joinable, which is the
+        // ordinary case and costs no allocation.
+        // ==========================================
+        private static bool[] UnjoinableRuns(string text, System.Func<char, bool> hasGlyph)
+        {
+            if (hasGlyph == null) { return null; }
+
+            bool[] leave = null;
+
+            int i = 0;
+            while (i < text.Length)
+            {
+                if (!IsRunCharacter(text[i])) { i++; continue; }
+
+                int start = i;
+                bool broken = false;
+                while (i < text.Length && IsRunCharacter(text[i]))
+                {
+                    if (Forms.TryGetValue(text[i], out char[] forms)
+                        && FormsToUse(text[i], forms, hasGlyph) == null)
+                    {
+                        broken = true;
+                    }
+                    i++;
+                }
+
+                if (!broken) { continue; }
+
+                leave = leave ?? new bool[text.Length];
+                for (int j = start; j < i; j++) { leave[j] = true; }
+            }
+
+            return leave;
+        }
+
+        // What belongs to one orthographic word for the purpose
+        // above: the letters, the marks that sit on them, and the
+        // three controls that steer joining without being letters.
+        // ZWNJ is deliberately inside the run - می‌شه is one word,
+        // and shaping half of it would be the failure this whole
+        // method exists to prevent.
+        private static bool IsRunCharacter(char c)
+        {
+            return Forms.ContainsKey(c)
+                || IsTransparent(c)
+                || c == ZeroWidthNonJoiner
+                || c == ZeroWidthJoiner
+                || c == Tatweel;
+        }
 
         // ==========================================
         // Which shapes this font can draw this letter

@@ -186,6 +186,53 @@ namespace UnityDirectTMP.Editor.Tests
             Assert.IsFalse(DirectArabicShaper.CanJoin('ش', hasGlyph));
         }
 
+        // ==========================================
+        // The word is the unit.
+        //
+        // This is the reported bug, stated as a test. When a font
+        // cannot draw one letter joined, the damage used to land on
+        // the letter NEXT to it: ر reported itself as joining
+        // nothing, so the ش before it fell out of its initial shape,
+        // and the word came apart at a letter that was perfectly
+        // fine. ر has only two forms, so it is the letter a gap is
+        // most likely to land on - which is why every report was
+        // about ر and never about the letter that actually changed
+        // shape.
+        //
+        // Now the run is shaped as a whole or not at all.
+        // ==========================================
+        [Test]
+        public void OneMissingFormNeverChangesTheLetterBesideIt()
+        {
+            // Everything except reh's FINAL form, which is the one a
+            // font is most likely to be short of and the one no
+            // stand-in can replace.
+            System.Func<char, bool> hasGlyph = c => c != '\uFEAE';
+
+            const string sheenInitial = "\uFEB7";
+
+            string shaped = DirectArabicShaper.Shape("شروع", hasGlyph, null);
+
+            Assert.AreNotEqual(sheenInitial, shaped.Substring(0, 1),
+                "the sheen must not be shaped into a form that connects to a reh this font cannot join");
+            Assert.AreEqual("شروع", shaped,
+                "and it must not be shaped into anything else either - the word stays exactly as typed");
+        }
+
+        // Two words, one of which the font can join. The one it can
+        // is still shaped: atomicity is per word, not per label,
+        // because a single exotic letter must not flatten a whole
+        // paragraph.
+        [Test]
+        public void AWordTheFontCanJoinIsStillShapedBesideOneItCannot()
+        {
+            System.Func<char, bool> hasGlyph = c => c != '\uFEAE';
+
+            string shaped = DirectArabicShaper.Shape("سلام شروع", hasGlyph, null);
+
+            Assert.AreEqual("\uFEB3\uFEFC\uFEE1 شروع", shaped);
+        }
+
         [Test]
         public void EveryJoiningClassIsReportedCorrectly()
         {

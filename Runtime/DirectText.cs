@@ -424,6 +424,19 @@ namespace UnityDirectTMP
                     // lookup per form and no allocation.
                     if (substituteMissingGlyphs) { _forms = DirectFontForms.TopUp(_font); }
                 }
+                else if (substituteMissingGlyphs && _forms != null && _forms.Retryable)
+                {
+                    // The first top-up of a label can run before TextMeshPro
+                    // has an atlas or the FontEngine has a face, and fail for
+                    // that reason alone. TopUp retries; the probe cache did
+                    // not, so a form that arrived on the second attempt was
+                    // still remembered as missing for the rest of the session -
+                    // and one letter remembered as missing un-joins its
+                    // neighbour.
+                    int before = _forms.FormsAdded;
+                    _forms = DirectFontForms.TopUp(_font);
+                    if (_forms.FormsAdded != before) { _glyphs.Clear(); }
+                }
 
                 // New text is a fresh start for the "is there a layout yet?"
                 // budget below.
@@ -669,6 +682,23 @@ namespace UnityDirectTMP
             if (font == null) { return true; }
 
             if (_glyphs.TryGetValue(c, out bool has)) { return has; }
+
+            // A form THIS package rasterized and wrote into the
+            // character table is drawable, and no second opinion is
+            // wanted. TextMeshPro is the right authority for a
+            // codepoint that came out of the font's own cmap; it is not
+            // the right authority for one we put there by glyph index,
+            // where HasCharacter can answer no for reasons that have
+            // nothing to do with this glyph - a table rebuilt between
+            // the two calls, an atlas under pressure. And a no here is
+            // never confined to one letter: a letter that cannot be
+            // joined tells the letter beside it not to reach for it, so
+            // one wrong answer takes a second letter's shape with it.
+            if (_forms != null && _forms.Supplied(c))
+            {
+                _glyphs[c] = true;
+                return true;
+            }
 
             has = font.HasCharacter(c, true, true);
             _glyphs[c] = has;
