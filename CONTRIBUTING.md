@@ -13,11 +13,11 @@ do was broken, and that is the mistake this codebase is now organised against.
 | `Runtime/DirectFontGsub.cs` | Reads a font's `GSUB` — the joining features, and lam-alef ligatures. Bytes in, facts out; every read bounds-checked. |
 | `Runtime/DirectFontJoiner.cs` | Makes a shape *available*: resolves the glyph and registers it in the TMP font asset. The only file that touches TextMeshPro internals. |
 | `Runtime/DirectBidi.cs` | Reordering for display. Runs **after** shaping, never before. |
-| `Runtime/DirectFont.cs` | `.ttf`/`.otf` → dynamic `TMP_FontAsset`, cached. |
+| `Runtime/DirectFontLibrary.cs` | `.ttf`/`.otf` → dynamic `TMP_FontAsset`, cached. |
 | `Runtime/DirectTMP.cs` | The public API. |
-| `Runtime/DirectTMPFont.cs` | The `Direct Font` component. Picks the font for the text's script, instances the material, and is itself the label's `ITextPreprocessor`. |
+| `Runtime/DirectFont.cs` | The `Direct Font` component. **The file name is load-bearing** — scenes bind components by this file's GUID, so the class in it must stay a `MonoBehaviour` called `DirectFont`. Picks the font for the text's script, instances the material, and is itself the label's `ITextPreprocessor`. |
 | `Runtime/DirectScript.cs` | Which writing system some text is in. Pure C#. |
-| `Editor/` | One custom Inspector and three menu items. That is the whole editor surface. |
+| `Editor/` | One custom Inspector and one menu file. Menus live apart from the Inspector so a compile error in one cannot make the menu vanish. |
 
 ## The two rules that matter
 
@@ -52,6 +52,11 @@ bug.
 - `python3 .github/scripts/validate_package.py` passes.
 - EditMode tests pass (`Tests/Editor/`).
 - Any new file has a `.meta` with a GUID that is unique in the repository.
+- **No file that a scene binds to has changed what kind of class it holds.**
+  Turning a `MonoBehaviour` file into a static helper while keeping its GUID
+  makes every scene using that component log
+  `is missing the class attribute 'ExtensionOfNativeClass'`, once per instance,
+  and the component cannot be recovered. The validator checks for it.
 - `Runtime/` uses no `UnityEditor` type outside a `#if UNITY_EDITOR` guard.
 - `CHANGELOG.md` has an entry, and `package.json` has the matching version.
 

@@ -62,8 +62,8 @@ namespace UnityDirectTMP
         {
             if (label == null || file == null) { return false; }
 
-            DirectTMPFont direct = label.GetComponent<DirectTMPFont>();
-            if (direct == null) { direct = label.gameObject.AddComponent<DirectTMPFont>(); }
+            DirectFont direct = label.GetComponent<DirectFont>();
+            if (direct == null) { direct = label.gameObject.AddComponent<DirectFont>(); }
 
             direct.Font = file;
             return direct.FontAsset != null;
@@ -73,14 +73,14 @@ namespace UnityDirectTMP
         /// A dynamic font asset for a font file, cached. Assign it to
         /// <c>label.font</c> yourself if you would rather not have a component.
         /// </summary>
-        public static TMP_FontAsset Load(Font file) => DirectFont.Load(file);
+        public static TMP_FontAsset Load(Font file) => DirectFontLibrary.Load(file);
 
         /// <summary>The same, for a .ttf/.otf on disk rather than an imported font.</summary>
-        public static TMP_FontAsset LoadFromFile(string path) => DirectFont.LoadFromFile(path);
+        public static TMP_FontAsset LoadFromFile(string path) => DirectFontLibrary.LoadFromFile(path);
 
         /// <summary>The same, for font bytes already in memory.</summary>
         public static TMP_FontAsset LoadFromBytes(byte[] bytes, string name = null)
-            => DirectFont.LoadFromBytes(bytes, name);
+            => DirectFontLibrary.LoadFromBytes(bytes, name);
 
         /// <summary>
         /// Rasterizes characters up front, so the first frame that shows them
@@ -96,6 +96,6 @@ namespace UnityDirectTMP
         }
 
         /// <summary>Drops every cached font asset. Anything still using one keeps working.</summary>
-        public static int ClearCache() => DirectFont.ClearCache();
+        public static int ClearCache() => DirectFontLibrary.ClearCache();
     }
 }

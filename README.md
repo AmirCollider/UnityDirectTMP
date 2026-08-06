@@ -27,7 +27,8 @@
 
 1. Select your TextMeshPro label.
 2. **Add Component ▸ Unity DirectTMP ▸ Direct Font**
-   (or **Tools ▸ Unity DirectTMP ▸ Add Direct Font to Selection**).
+   (or select a Canvas and use **Unity DirectTMP ▸ Add Direct Font to Selection**,
+   which does every label underneath it).
 3. Drop a `.ttf` or `.otf` into **Font**.
 
 That label is now drawn from that file. Glyphs are rasterized the first time

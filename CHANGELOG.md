@@ -5,6 +5,45 @@ All notable changes to **Unity DirectTMP** are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.1]
+
+### Fixed
+- **`'UnityDirectTMP.DirectFont' is missing the class attribute
+  'ExtensionOfNativeClass'!`, once per label, on every scene load.**
+
+  In 2.0.0 `Runtime/DirectFont.cs` was rewritten from the `Direct Font`
+  *component* into a static font-loading helper — and kept its `.meta`, so it
+  kept its GUID. Every `Direct Font` component in every existing scene still
+  points at that GUID. Unity resolved it, found a static class where a
+  `MonoBehaviour` had been, and said so once per instance, forever.
+
+  `DirectFont` is a `MonoBehaviour` again, in that same file, under that same
+  GUID — so the components in existing scenes bind to it instead of erroring.
+  The loader moved to `Runtime/DirectFontLibrary.cs` with a GUID of its own.
+
+  The component's font field carries `[FormerlySerializedAs("fontFile")]`, so a
+  `Direct Font` left over from 1.x comes back **with its font still assigned**
+  rather than empty.
+
+- **The menu still did not appear.** 2.1.0 moved it to `Tools/`, which is a
+  submenu, not the menu bar. It is now top-level: **Unity DirectTMP**, where
+  1.x had it. The menu items also moved out of the Inspector file into
+  `Editor/DirectTMPMenu.cs` — a menu declared inside a `CustomEditor`
+  disappears if anything else in that file stops compiling, which looks
+  exactly like a package that was never installed.
+
+### Added
+- **Unity DirectTMP ▸ Add Direct Font to Selection** now walks children, so
+  selecting a Canvas does every label under it.
+- **Unity DirectTMP ▸ Remove Direct Font from Selection**, so trying this
+  package is not a one-way door.
+- The package validator now fails if a file that a scene can bind to stops
+  holding a `MonoBehaviour` of the same name — the exact mistake above.
+
+### Changed
+- `DirectTMPFont` is now `DirectFont`; the static loader is
+  `DirectFontLibrary`. `DirectTMP`'s own API is unchanged.
+
 ## [2.1.0]
 
 2.0.0 fixed the shaping but replaced the per-label component with one
