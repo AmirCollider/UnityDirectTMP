@@ -79,6 +79,10 @@ namespace UnityDirectTMP
         [Tooltip("Join Persian/Arabic letters and put right-to-left text in reading order.")]
         [SerializeField] private bool fixRightToLeft = true;
 
+        [Tooltip("Keep wrapped lines in the right order. Needed for any right-to-left "
+               + "paragraph long enough to wrap; turn it off only to rule it out.")]
+        [SerializeField] private bool fixWrappedLines = true;
+
         private TMP_Text _label;
         private TMP_FontAsset _asset;
         private DirectScript _script = DirectScript.None;
@@ -87,6 +91,7 @@ namespace UnityDirectTMP
         private string _scanned;
         private string _sourceText;
         private string _shapedText;
+        private bool _measuring;
 
         /// <summary>The font file this label is drawn from.</summary>
         public Font Font
@@ -282,9 +287,144 @@ namespace UnityDirectTMP
             if (_sourceText == text) { return; }
 
             _sourceText = text;
-            _shapedText = DirectTMP.Prepare(text, _asset);
+            _shapedText = Prepare(text);
 
             if (_shapedText != text) { Regenerate(); }
+        }
+
+        // ==========================================
+        // Reordering has to happen PER DISPLAY LINE.
+        //
+        // This is the whole of "the lines came out in
+        // the wrong order", and it is not a bug in the
+        // reordering - it is a bug in doing it once for
+        // the whole paragraph.
+        //
+        // Reordering a right-to-left paragraph reverses
+        // it: the last word of the sentence ends up at
+        // the start of the string. TextMeshPro then wraps
+        // that string the way it wraps any string - first
+        // line first - so the first line on screen holds
+        // the END of the sentence and the last line holds
+        // the beginning. Every line is internally correct,
+        // which is what makes it so confusing to look at.
+        //
+        // Real text engines break the line first and
+        // reorder each line afterwards; the Unicode
+        // algorithm says so in as many words. So that is
+        // what happens here:
+        //
+        //   1. shape the text but leave it in the order it
+        //      was typed;
+        //   2. ask TextMeshPro where IT would break that,
+        //      at this font, this size, this width;
+        //   3. cut the sentence at those places and
+        //      reorder each piece on its own.
+        //
+        // Step 2 is honest measuring rather than a guess:
+        // shaped text has the same glyphs as the text that
+        // will be drawn, so it has the same widths and the
+        // same breaks.
+        // ==========================================
+        private string Prepare(string text)
+        {
+            if (!fixWrappedLines || _label == null || !Wraps()) { return DirectTMP.Prepare(text, _asset); }
+
+            string shaped = DirectTMP.Shape(text, _asset);
+
+            int[] breaks = LineBreaksOf(shaped);
+            if (breaks == null || breaks.Length <= 1) { return DirectTMP.Prepare(text, _asset); }
+
+            var built = new System.Text.StringBuilder(shaped.Length + breaks.Length);
+
+            for (int i = 0; i < breaks.Length; i++)
+            {
+                int start = breaks[i];
+                int end = i + 1 < breaks.Length ? breaks[i + 1] : shaped.Length;
+                if (end <= start) { continue; }
+
+                if (built.Length > 0) { built.Append('\n'); }
+                built.Append(DirectTMP.Reorder(shaped.Substring(start, end - start)));
+            }
+
+            return built.ToString();
+        }
+
+        private bool Wraps()
+        {
+            try
+            {
+#if UNITY_2023_2_OR_NEWER
+                return _label.textWrappingMode != TextWrappingModes.NoWrap;
+#else
+                return _label.enableWordWrapping;
+#endif
+            }
+            catch { return true; }
+        }
+
+        // Where TextMeshPro would break this text, as indices into it.
+        // Always starts with 0; null when it could not be measured.
+        private int[] LineBreaksOf(string shaped)
+        {
+            if (shaped.IndexOf('\n') >= 0) { return null; }   // author's own breaks win
+
+            TMP_TextInfo info;
+
+            // GetTextInfo measures by SETTING the label's text and generating
+            // it. Two things follow, and both have to be undone:
+            //
+            //   * label.text ends up holding the string we measured, not the
+            //     one the game set. It is put back.
+            //   * label.text is serialized, so in the Editor that would mark
+            //     the scene modified for a measurement nobody asked to save.
+            //
+            // And because generating text calls this component back as the
+            // label's preprocessor, it has to hand the string straight back
+            // while that is happening, or we measure something else again.
+            string original = _label.text;
+
+#if UNITY_EDITOR
+            bool wasDirty = UnityEditor.EditorUtility.IsDirty(_label);
+#endif
+            _measuring = true;
+            try
+            {
+                info = _label.GetTextInfo(shaped);
+            }
+            catch
+            {
+                return null;
+            }
+            finally
+            {
+                if (_label.text != original) { _label.text = original; }
+                _measuring = false;
+#if UNITY_EDITOR
+                if (!wasDirty) { UnityEditor.EditorUtility.ClearDirty(_label); }
+#endif
+            }
+
+            if (info == null || info.lineCount <= 1) { return null; }
+
+            var breaks = new int[info.lineCount];
+            for (int i = 0; i < info.lineCount; i++)
+            {
+                int first = info.lineInfo[i].firstCharacterIndex;
+                if (first < 0 || first >= info.characterInfo.Length) { return null; }
+
+                breaks[i] = info.characterInfo[first].index;
+            }
+
+            breaks[0] = 0;
+
+            // Monotonic or the slicing below is nonsense.
+            for (int i = 1; i < breaks.Length; i++)
+            {
+                if (breaks[i] <= breaks[i - 1] || breaks[i] > shaped.Length) { return null; }
+            }
+
+            return breaks;
         }
 
         // ==========================================
@@ -321,6 +461,7 @@ namespace UnityDirectTMP
         /// </summary>
         public string PreprocessText(string text)
         {
+            if (_measuring) { return text; }
             if (!fixRightToLeft || string.IsNullOrEmpty(text)) { return text; }
 
             // The ordinary path: LateUpdate already shaped this exact string.

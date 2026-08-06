@@ -5,6 +5,35 @@ All notable changes to **Unity DirectTMP** are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.4]
+
+### Fixed
+- **A wrapped right-to-left paragraph came out with its lines in the wrong
+  order** — the end of the sentence on the first line, the beginning on the
+  last. Every line was internally correct, which is what made it so hard to
+  look at.
+
+  Reordering was being done once, for the whole paragraph. Reordering a
+  right-to-left paragraph reverses it, so the last word of the sentence ends up
+  at the start of the string — and TextMeshPro then wraps that string the way
+  it wraps any string, first line first. So the first line on screen held the
+  end of the sentence.
+
+  Reordering now happens **per display line**, which is what the Unicode
+  algorithm calls for: break the line first, reorder each line afterwards. The
+  text is shaped but left in the order it was typed, TextMeshPro is asked where
+  it would break *that* at this font, size and width, and the sentence is cut
+  at those places and each piece reordered on its own. The measurement is
+  honest rather than a guess — shaped text has the same glyphs as the text that
+  will be drawn, so it breaks in the same places.
+
+- Measuring restores the label's own text afterwards, and does not mark the
+  scene modified for it.
+
+### Added
+- **Keep wrapped lines in order** on the component, on by default. Only there
+  so it can be ruled out.
+
 ## [2.1.3]
 
 ### Fixed

@@ -50,6 +50,30 @@ namespace UnityDirectTMP
         /// </summary>
         public static string Prepare(string text) => Prepare(text, null);
 
+        /// <summary>
+        /// Joins the letters but leaves them in logical order - no reordering.
+        ///
+        /// This is what you measure with. Shaped text has the same glyphs, and
+        /// therefore the same width and the same line breaks, as the reordered
+        /// text that will finally be drawn - but it is still in the order the
+        /// letters were typed, so a line break found in it is a break at a
+        /// known place in the original sentence.
+        /// </summary>
+        public static string Shape(string text, TMP_FontAsset asset)
+        {
+            if (string.IsNullOrEmpty(text) || !DirectJoining.NeedsShaping(text)) { return text; }
+
+            DirectFontJoiner joiner = asset == null ? null : DirectFontJoiner.For(asset);
+
+            return DirectRichText.Apply(text, segment =>
+                joiner == null ? DirectShaper.Shape(segment) : joiner.Shape(segment));
+        }
+
+        /// <summary>
+        /// Reorders one already-shaped line into the order it is read in.
+        /// </summary>
+        public static string Reorder(string line) => DirectBidi.Reorder(line);
+
         // ==========================================
         // Labels
         // ==========================================

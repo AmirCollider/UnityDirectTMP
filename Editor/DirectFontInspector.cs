@@ -41,6 +41,10 @@ namespace UnityDirectTMP.EditorTools
             EditorGUILayout.PropertyField(serializedObject.FindProperty("fixRightToLeft"),
                 new GUIContent("Join Persian / Arabic",
                     "Costs nothing for text with no Arabic script in it."));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("fixWrappedLines"),
+                new GUIContent("Keep wrapped lines in order",
+                    "Needed for any right-to-left paragraph long enough to wrap. "
+                  + "Turn it off only to rule it out."));
 
             serializedObject.ApplyModifiedProperties();
 
