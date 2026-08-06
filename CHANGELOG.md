@@ -5,6 +5,33 @@ All notable changes to **Unity DirectTMP** are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.6]
+
+### Fixed
+- **Windows line endings.** Unity's own text fields hand back `\r\n`, and the
+  paragraph splitting was written for `\n` — so the `\r` stayed stuck to the
+  end of the paragraph before it, where it did damage twice over: the
+  reordering treated it as an ordinary character and carried it to the *front*
+  of the right-to-left line, and TextMeshPro then drew it as a line break of
+  its own. One invisible character, one stray blank line, and the first word of
+  the paragraph adrift on a line by itself.
+
+  All three endings — `\r\n`, `\r`, `\n` — are now recognised, and only `\n`
+  is emitted.
+
+- **The diagnostic was reporting the wrong thing.** `Diagnose Selected Label`
+  printed `DirectTMP.Prepare`, which reorders a whole paragraph at a time —
+  not what the component actually hands TextMeshPro, which is broken into
+  display lines first. So a working per-line pass looked like it had never
+  run, in a report meant to settle exactly that question. It now reports the
+  component's real output, and the number of lines in it.
+
+### Added
+- `DirectTMP.Paragraphs(string)` — the splitting, pulled out as a pure method
+  so it can be tested without a label, a font or a running Editor. **Twelve
+  tests** cover it: every line ending, blank lines, leading and trailing
+  breaks, and a check that no carriage return survives into a paragraph.
+
 ## [2.1.5]
 
 ### Fixed

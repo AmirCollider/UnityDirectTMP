@@ -8,6 +8,7 @@
 // called one of these methods. Nothing happens to a
 // label nobody asked about.
 // ==========================================
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 
@@ -73,6 +74,44 @@ namespace UnityDirectTMP
         /// Reorders one already-shaped line into the order it is read in.
         /// </summary>
         public static string Reorder(string line) => DirectBidi.Reorder(line);
+
+        /// <summary>
+        /// Splits text into paragraphs at the line breaks its author typed,
+        /// recognising all three endings - "\r\n", "\r" and "\n" - and
+        /// keeping none of them.
+        ///
+        /// Unity's own text fields hand back WINDOWS line endings, so a break
+        /// is "\r\n" and not "\n". Splitting on "\n" alone leaves the "\r"
+        /// stuck to the end of the paragraph before it, where it does damage
+        /// twice over: reordering carries it to the front of a right-to-left
+        /// line, and TextMeshPro then draws it as a line break of its own.
+        ///
+        /// Pure, and separated out so that it can be tested without a label,
+        /// a font or a running Editor.
+        /// </summary>
+        public static string[] Paragraphs(string text)
+        {
+            if (text == null) { return new string[0]; }
+            if (text.IndexOf('\r') < 0 && text.IndexOf('\n') < 0) { return new[] { text }; }
+
+            var paragraphs = new List<string>();
+            int start = 0;
+            int i = 0;
+
+            while (i < text.Length)
+            {
+                char c = text[i];
+                if (c != '\r' && c != '\n') { i++; continue; }
+
+                paragraphs.Add(text.Substring(start, i - start));
+
+                i += c == '\r' && i + 1 < text.Length && text[i + 1] == '\n' ? 2 : 1;
+                start = i;
+            }
+
+            paragraphs.Add(text.Substring(start));
+            return paragraphs.ToArray();
+        }
 
         // ==========================================
         // Labels

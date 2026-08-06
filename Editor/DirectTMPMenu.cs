@@ -153,9 +153,14 @@ namespace UnityDirectTMP.EditorTools
             }
 
             DirectFontJoiner joiner = DirectFontJoiner.For(asset);
-            string shaped = DirectTMP.Prepare(text, asset);
+
+            // What the component actually hands TextMeshPro - not
+            // DirectTMP.Prepare, which reorders a whole paragraph at a time
+            // and would make the per-line pass look like it never ran.
+            string shaped = direct.PreparedText() ?? DirectTMP.Prepare(text, asset);
 
             report.Append("  shaped                : ").Append(Show(shaped)).Append('\n');
+            report.Append("  lines out             : ").Append(shaped.Split('\n').Length).Append('\n');
             report.Append("  joining rules read    : ").Append(joiner.HasJoiningRules ? "yes" : "NO").Append('\n');
             if (!string.IsNullOrEmpty(joiner.Problem))
             {

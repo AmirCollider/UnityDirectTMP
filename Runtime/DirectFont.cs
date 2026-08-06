@@ -106,6 +106,23 @@ namespace UnityDirectTMP
         /// <summary>Which writing system the current text was found to be in.</summary>
         public DirectScript Script => _script;
 
+        /// <summary>
+        /// Exactly what this component hands TextMeshPro for the label's
+        /// current text, line breaks and all.
+        ///
+        /// This is what a diagnostic has to report. DirectTMP.Prepare is only
+        /// half the story - it reorders a whole paragraph at a time, while the
+        /// component breaks the paragraph into display lines first. Reporting
+        /// the former makes a working per-line pass look like it never ran.
+        /// </summary>
+        public string PreparedText()
+        {
+            if (_label == null || font == null) { return null; }
+            if (!fixRightToLeft) { return _label.text; }
+
+            return Prepare(_label.text ?? string.Empty);
+        }
+
         private void OnEnable()
         {
             _label = GetComponent<TMP_Text>();
@@ -330,28 +347,36 @@ namespace UnityDirectTMP
         {
             if (!fixWrappedLines || _label == null || !Wraps()) { return DirectTMP.Prepare(text, _asset); }
 
-            // A line break the author typed is a paragraph boundary, and each
-            // paragraph wraps on its own. Treating one as a reason to skip all
-            // of this - which is what 2.1.4 did - meant any text with a blank
-            // line in it fell straight back to the whole-paragraph reordering
-            // this method exists to replace, and came out in the wrong order
-            // exactly as before.
-            if (text.IndexOf('\n') < 0) { return Paragraph(text); }
+            // ==========================================
+            // Line endings, all three of them.
+            //
+            // A line break the author typed is a
+            // paragraph boundary, and each paragraph then
+            // wraps on its own. But Unity's own text
+            // fields hand back WINDOWS line endings, so
+            // the break is "\r\n" and not "\n" - and
+            // splitting on "\n" alone leaves the "\r"
+            // stuck to the end of the paragraph before it.
+            //
+            // A stray carriage return then does damage
+            // twice over: the reordering treats it as an
+            // ordinary character and carries it to the
+            // front of a right-to-left line, and
+            // TextMeshPro draws it as a line break of its
+            // own. One invisible character, one extra
+            // blank line, and the first word of the
+            // paragraph adrift.
+            //
+            // So all three endings are recognised, and
+            // only "\n" is emitted.
+            // ==========================================
+            string[] paragraphs = DirectTMP.Paragraphs(text);
+            var built = new System.Text.StringBuilder(text.Length + paragraphs.Length);
 
-            var built = new System.Text.StringBuilder(text.Length + 8);
-            int start = 0;
-
-            while (true)
+            for (int i = 0; i < paragraphs.Length; i++)
             {
-                int newline = text.IndexOf('\n', start);
-                int end = newline < 0 ? text.Length : newline;
-
-                built.Append(Paragraph(text.Substring(start, end - start)));
-
-                if (newline < 0) { break; }
-
-                built.Append('\n');
-                start = newline + 1;
+                if (i > 0) { built.Append('\n'); }
+                built.Append(Paragraph(paragraphs[i]));
             }
 
             return built.ToString();

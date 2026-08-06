@@ -255,4 +255,76 @@ namespace UnityDirectTMP.Tests
             Assert.IsFalse(result.Contains("س"), "the text between the tags was shaped");
         }
     }
+
+    // ==========================================
+    // Line endings.
+    //
+    // Unity's own text fields hand back Windows line
+    // endings, and every one of these cases shipped
+    // broken at least once because the splitting was
+    // written for "\n" and tested on "\n".
+    // ==========================================
+    public class DirectParagraphTests
+    {
+        private static void Splits(string text, params string[] expected)
+        {
+            string[] actual = DirectTMP.Paragraphs(text);
+
+            Assert.AreEqual(expected.Length, actual.Length,
+                $"'{Escape(text)}' should split into {expected.Length} paragraph(s), "
+                + $"got {actual.Length}: {Escape(string.Join("|", actual))}");
+
+            for (int i = 0; i < expected.Length; i++)
+            {
+                Assert.AreEqual(expected[i], actual[i], $"paragraph {i} of '{Escape(text)}'");
+            }
+        }
+
+        private static string Escape(string s)
+            => s == null ? "null" : s.Replace("\r", "\\r").Replace("\n", "\\n");
+
+        [Test] public void Unix() => Splits("A\nB", "A", "B");
+        [Test] public void Windows() => Splits("A\r\nB", "A", "B");
+        [Test] public void ClassicMac() => Splits("A\rB", "A", "B");
+
+        [Test] public void BlankLineUnix() => Splits("A\n\nB", "A", string.Empty, "B");
+        [Test] public void BlankLineWindows() => Splits("A\r\n\r\nB", "A", string.Empty, "B");
+
+        [Test] public void Trailing() => Splits("A\r\n", "A", string.Empty);
+        [Test] public void Leading() => Splits("\r\nA", string.Empty, "A");
+        [Test] public void OnlyBreaks() => Splits("\r\n\r\n", string.Empty, string.Empty, string.Empty);
+
+        [Test] public void NoBreak() => Splits("A", "A");
+        [Test] public void Empty() => Splits(string.Empty, string.Empty);
+
+        [Test]
+        public void NoCarriageReturnSurvives()
+        {
+            // A stray \r does damage twice: reordering carries it to the front
+            // of a right-to-left line, and TextMeshPro draws it as a line break
+            // of its own. Neither is visible in the string.
+            foreach (string text in new[]
+            {
+                "A\r\nB", "A\rB", "A\r\n\r\nB", "A\r\n", "\r\nA", "\r\n\r\n",
+                "سلام دوست من!\r\n\r\nبا رفتن به وبسایتمون",
+            })
+            {
+                foreach (string paragraph in DirectTMP.Paragraphs(text))
+                {
+                    Assert.IsFalse(paragraph.Contains("\r"),
+                        $"'{Escape(text)}' left a carriage return inside a paragraph");
+                }
+            }
+        }
+
+        [Test]
+        public void ParagraphsRejoinToTheOriginalText()
+        {
+            const string text = "سلام دوست من!\r\n\r\nبا رفتن به وبسایتمون میتونی";
+
+            Assert.AreEqual(
+                text.Replace("\r\n", "\n"),
+                string.Join("\n", DirectTMP.Paragraphs(text)));
+        }
+    }
 }
