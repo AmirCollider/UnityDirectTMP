@@ -40,7 +40,9 @@ REQUIRED = [
     "Runtime/DirectBidi.cs",
     "Runtime/DirectFont.cs",
     "Runtime/DirectTMP.cs",
-    "Editor/DirectTMPWindow.cs",
+    "Editor/DirectTMPFontInspector.cs",
+    "Runtime/DirectTMPFont.cs",
+    "Runtime/DirectScript.cs",
 ]
 for path in REQUIRED:
     check(os.path.exists(path), f"missing required file: {path}")
