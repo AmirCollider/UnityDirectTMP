@@ -38,7 +38,7 @@ namespace UnityDirectTMP
         // ==========================================
         public const string ToolName = "Unity DirectTMP";
         public const string ShortName = "DirectTMP";
-        public const string Version = "1.2.2";
+        public const string Version = "1.3.0";
         public const string Author = "AmirCollider";
         public const string GithubUrl = "https://github.com/AmirCollider/UnityDirectTMP";
 
@@ -144,6 +144,25 @@ namespace UnityDirectTMP
         // every DirectFont that asked for it.
         // ==========================================
         public const string RuntimeCacheFolderName = "UnityDirectTMP/FontCache";
+
+        // ==========================================
+        // The project-wide settings asset
+        //
+        // Loaded with Resources.Load, which is the one
+        // lookup that works identically in the Editor, in
+        // Play mode and in a shipped player - and the
+        // reason the project-wide font survives a domain
+        // reload, a scene reload and a build without
+        // anything being written into a scene.
+        //
+        // The name is the Resources path, so it must not
+        // contain a folder separator and must match the
+        // asset's file name exactly.
+        // ==========================================
+        public const string GlobalConfigResourceName = "UnityDirectTMPSettings";
+
+        /// <summary>Where the editor creates the project-wide settings asset.</summary>
+        public const string GlobalConfigAssetPath = "Assets/Resources/" + GlobalConfigResourceName + ".asset";
 
         // ==========================================
         // The suffix appended to a generated dynamic

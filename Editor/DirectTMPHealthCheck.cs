@@ -139,12 +139,94 @@ namespace UnityDirectTMP.Editor
             CheckPackage(report);
             CheckTextMeshPro(report);
             CheckTmpResources(report);
+            CheckShader(report);
             CheckMenuRegistration(report);
             CheckProjectFonts(report);
+            CheckGlobalFont(report);
             CheckEditorFont(report);
             CheckCache(report);
 
             return report;
+        }
+
+        // ==========================================
+        // The shader every generated font sits on
+        //
+        // Separate from the resources check above because
+        // the two fail apart: a project can carry the TMP
+        // Settings asset and still have lost the shaders
+        // to a botched upgrade or an aggressive .gitignore.
+        // A material built on a null shader is not an
+        // error anybody sees - it is a label that renders
+        // nothing, which reads as this package being
+        // broken.
+        // ==========================================
+        private static void CheckShader(DirectHealthReport report)
+        {
+            Shader shader = DirectFontDiagnostics.FindDistanceFieldShader();
+
+            report.Entries.Add(new DirectHealthEntry
+            {
+                Level = shader != null ? DirectHealthLevel.Ok : DirectHealthLevel.Problem,
+                Subject = "TMP shader",
+                Finding = shader != null
+                    ? $"Found — {shader.name}."
+                    : "TextMeshPro's distance-field shader is not in this project.",
+                Advice = shader != null
+                    ? string.Empty
+                    : "Every font this package builds needs it, and a material without it draws nothing at all. "
+                    + "Re-import Window ▸ TextMeshPro ▸ Import TMP Essential Resources.",
+                ActionLabel = shader != null ? string.Empty : "Open the TextMeshPro menu",
+                Fix = shader != null
+                    ? null
+                    : (Action)(() => EditorApplication.ExecuteMenuItem("Window/TextMeshPro/Import TMP Essential Resources"))
+            });
+        }
+
+        // ==========================================
+        // The project-wide font
+        //
+        // Three states worth telling apart, because they
+        // send somebody to three different places: never
+        // set up, set up and working, set up and refusing
+        // to apply. The third one carries the reason.
+        // ==========================================
+        private static void CheckGlobalFont(DirectHealthReport report)
+        {
+            DirectGlobalFontConfig config = DirectGlobalFont.Config;
+
+            if (config == null || !config.IsActive)
+            {
+                report.Entries.Add(new DirectHealthEntry
+                {
+                    Level = DirectHealthLevel.Ok,
+                    Subject = "Global font",
+                    Finding = config == null
+                        ? "Not set up — every label keeps its own font asset."
+                        : "Configured but switched off.",
+                    Advice = "Unity DirectTMP ▸ Global Font… points every TextMeshPro label in the project at one "
+                           + "font file, with no component on any GameObject and nothing written into any scene.",
+                    ActionLabel = "Open the Global Font window",
+                    Fix = DirectGlobalFontWindow.ShowWindow
+                });
+                return;
+            }
+
+            bool applied = DirectGlobalFont.IsActive;
+            string problem = DirectGlobalFont.LastProblem;
+
+            report.Entries.Add(new DirectHealthEntry
+            {
+                Level = applied ? DirectHealthLevel.Ok : DirectHealthLevel.Problem,
+                Subject = "Global font",
+                Finding = applied
+                    ? $"'{config.FontFile.name}' — {DirectGlobalFont.LabelsUsingFont} label(s) drawn from it, "
+                    + $"{DirectGlobalFont.LabelsShaped} shaped."
+                    : $"'{config.FontFile.name}' is configured but has not been applied.",
+                Advice = applied ? string.Empty : (problem ?? "Open the window and press Re-apply."),
+                ActionLabel = "Open the Global Font window",
+                Fix = DirectGlobalFontWindow.ShowWindow
+            });
         }
 
         // ==========================================
@@ -307,11 +389,46 @@ namespace UnityDirectTMP.Editor
         {
             string[] guids = AssetDatabase.FindAssets("t:Font");
             int baked = 0;
+            int dataless = 0;
+            var broken = new List<string>();
 
             foreach (string guid in guids)
             {
                 string path = AssetDatabase.GUIDToAssetPath(guid);
-                if (!DirectEditorFont.IsDynamicImport(path)) { baked++; }
+                if (!DirectEditorFont.IsDynamicImport(path)) { baked++; broken.Add(path); continue; }
+
+                // "Include Font Data" off is the one that produces NOTHING and
+                // says nothing: Unity keeps the font's name instead of its
+                // bytes, TextMeshPro's factory has nothing to rasterize, and
+                // the setting lives in the .meta file rather than in the font -
+                // which is exactly why the same .ttf works in one project and
+                // not in the next.
+                var importer = AssetImporter.GetAtPath(path) as TrueTypeFontImporter;
+                if (importer != null && !importer.includeFontData) { dataless++; broken.Add(path); }
+            }
+
+            if (broken.Count > 0)
+            {
+                report.Entries.Add(new DirectHealthEntry
+                {
+                    Level = DirectHealthLevel.Problem,
+                    Subject = "Font import settings",
+                    Finding = dataless > 0 && baked > 0
+                        ? $"{baked} font(s) with a baked character set and {dataless} with \"Include Font Data\" switched off."
+                        : dataless > 0
+                            ? $"{dataless} font(s) imported with \"Include Font Data\" switched off."
+                            : $"{baked} font(s) imported with a baked character set.",
+                    Advice = "TextMeshPro cannot read a font face out of either of those, so a label assigned one "
+                           + "silently keeps whatever font it had. These settings live in the .meta file beside "
+                           + "each font rather than in the font itself, which is why the same file behaves "
+                           + "differently in two projects.",
+                    ActionLabel = "Fix all of them",
+                    Fix = () =>
+                    {
+                        foreach (string path in broken) { DirectGlobalFontBootstrap.RepairImport(path); }
+                        AssetDatabase.Refresh();
+                    }
+                });
             }
 
             if (guids.Length == 0)
@@ -328,18 +445,18 @@ namespace UnityDirectTMP.Editor
                 return;
             }
 
+            // The count only. Whatever is WRONG with those imports has its own
+            // entry above, with the button that fixes it - saying it twice in
+            // one report just makes the report longer.
             report.Entries.Add(new DirectHealthEntry
             {
-                Level = baked > 0 ? DirectHealthLevel.Warning : DirectHealthLevel.Ok,
+                Level = DirectHealthLevel.Ok,
                 Subject = "Project fonts",
-                Finding = baked > 0
-                    ? $"{guids.Length} font(s); {baked} imported with a baked character set."
-                    : $"{guids.Length} font(s), all imported as dynamic fonts.",
-                Advice = baked > 0
-                    ? "A font imported with a fixed character set can only ever draw the characters that were baked in — which is the exact problem this package exists to remove. Set its import mode to Dynamic in the Inspector."
-                    : string.Empty,
-                ActionLabel = baked > 0 ? "Open the Font Catalog" : string.Empty,
-                Fix = baked > 0 ? (Action)DirectFontCatalogWindow.ShowWindow : null
+                Finding = broken.Count > 0
+                    ? $"{guids.Length} font(s); {broken.Count} imported in a way TextMeshPro cannot read."
+                    : $"{guids.Length} font(s), all readable.",
+                ActionLabel = "Open the Font Catalog",
+                Fix = DirectFontCatalogWindow.ShowWindow
             });
         }
 

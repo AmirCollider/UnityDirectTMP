@@ -19,6 +19,45 @@ roadmap in the [README](README.md#-roadmap).
 - Colour & emoji fonts (COLR / CBDT).
 - Variable font axes — weight, width, slant.
 
+## [1.3.0] - 2026-08-06
+
+One font, the whole project, nothing added to anything — and the four project-level
+faults that made the same font file work in one project and do nothing in the next.
+
+### Added
+
+- **`Unity DirectTMP ▸ Global Font…` — the whole package in one screen.** Point it at a `.ttf` and every `TextMeshPro - Text (UI)` and `TextMeshPro` in the project is drawn from that file, joined and in reading order where the script needs it, in the Editor, in Play mode and in the build. No component on any GameObject, no prefab touched, no scene modified. Right-clicking a font in the Project window → **Use This Font Everywhere** is the one-click version.
+
+  Two mechanisms, deliberately, because they fail in opposite directions. Every loaded label has its font replaced, so the text is drawn in *your* font — that cannot reach a label that does not exist yet. And the font is registered in TextMeshPro's own project-wide fallback list, so any label anywhere, including ones instantiated in the tenth minute of play and ones inside packages you did not write, resolves characters its own font lacks out of yours. Between them there is no label the override cannot reach.
+
+- **It survives a scene reload, because there is nothing in the scene to lose.** The generated font asset is built at load and never saved to disk, so a scene that stored a reference to it stored a reference to nothing and got `null` back on the next open. That is the whole of the "it disappears when the scene reloads" report, and it was not fixable inside a design that wrote to scenes. The settings live in one asset in `Assets/Resources` and are applied on every load: domain reload, scene open, entering Play mode, an additive scene loaded at runtime. Every path Unity can save through is bracketed, so a scene on disk is byte-for-byte the scene you built whether the override was on or not.
+
+- **Unity's own interface, from the same checkbox.** The project-wide setting can also restyle the menu bar, Hierarchy, Inspector, Project window and Console. Nothing is written to your Unity installation and quitting Unity is still a complete undo. A font somebody chose by hand in the Editor Font window is never overruled.
+
+- **`DirectTMP.RefreshGlobalFont()`, `DirectTMP.ClearGlobalFont()`, `DirectTMP.GlobalFontActive`, `DirectTMP.GlobalFontAsset`** for projects that would rather do it in code, and for the one that instantiates a screenful of prefabs and wants to say so rather than pay for a watcher.
+
+- **`DirectFontDiagnostics`** — the four project-level facts that decide whether a font file can become a dynamic atlas, each with the fix, in the Console once per session and as its own row in the Health Check.
+
+### Fixed
+
+- **"It works in my other project."** The same package, the same font file, the same Unity version, working in one project and doing nothing at all in the next — and never once a difference between the two fonts. A `.ttf` carries no import settings; the `.meta` file beside it does, and that file belongs to the project.
+
+  Four things decide it, none visible from a scene: TMP Essential Resources not imported (`TMP_Settings` is null and there is no material for a generated font to sit on), **"Include Font Data" switched off** on the font importer (Unity keeps the font's *name* instead of its bytes, so TextMeshPro's factory has nothing to rasterize and returns `null`), the importer's **Character** mode set to anything but Dynamic (a fixed bitmap is baked at import and the outlines are gone), and TextMeshPro's distance-field shader not being findable (every generated material is built on a null shader and renders nothing).
+
+  None of them produced a message. `TMP_FontAsset.CreateFontAsset` returned `null`, `DirectFont.Apply` returned quietly, and the label kept whatever font it already had — which looks exactly like a package that did not install. Each is now named in a sentence with the fix in it, once, and the two that are import settings are worked around outright: when TextMeshPro cannot read the imported `Font`, the `.ttf` is read **directly off disk**, which no importer setting can affect. The settings are repaired anyway, because every *other* tool in the project reads the imported asset and cannot work around anything.
+
+- **A generated font asset with no usable material rendered nothing, silently.** TextMeshPro builds one on a cached shader reference that is null in a project whose TMP resources were never imported. The shader is now looked up again by name, and when there genuinely is none the reason is stated rather than left to be deduced from a blank screen.
+
+- **A failed font build said nothing at all.** `DirectFontFactory` swallowed both the null return and any exception. It now reports the actual reason, once per font rather than once per label, with the font as the console context object so clicking the message selects it.
+
+### Changed
+
+- **`DirectText`'s pipeline moved into `DirectTextEngine`, a plain class with no MonoBehaviour.** The component is now the four serialized options and a lifecycle; the work is shared with the project-wide mode, which is what lets the same behaviour reach a whole project without adding a component to anything. Behaviour, serialized field names and the Inspector are unchanged.
+
+- **One editor tick instead of one per label.** Every `DirectText` used to subscribe its own delegate to `EditorApplication.update`, so a screen with two hundred captions was two hundred delegate invocations and two hundred string comparisons on every idle editor frame, forever. They share one ticker and one loop now.
+
+- **The Health Check gained three rows** — the TMP shader, the project-wide font, and font import settings — and the import-settings row fixes every affected font in the project in one click. The project-fonts row stopped repeating what the new one says.
+
 ## [1.2.2] - 2026-08-05
 
 The word is the unit, not the letter.

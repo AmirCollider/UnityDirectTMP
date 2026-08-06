@@ -70,6 +70,47 @@ namespace UnityDirectTMP
         }
 
         // ==========================================
+        // The project-wide font.
+        //
+        // SetGlobalFont above is a one-shot: it walks the
+        // labels that are loaded right now and stops. The
+        // three below are the standing arrangement -
+        // whatever the project's settings asset says,
+        // applied to everything, kept applied across
+        // scene loads, and never written into a scene.
+        //
+        // Set it up once from Unity DirectTMP ▸ Global
+        // Font…; these are here for the project that
+        // would rather do it in code, and for the one
+        // that instantiates a screenful of prefabs and
+        // wants to say so rather than pay for a watcher.
+        // ==========================================
+
+        /// <summary>
+        /// Is the project-wide font override applied right now?
+        /// </summary>
+        public static bool GlobalFontActive => DirectGlobalFont.IsActive;
+
+        /// <summary>
+        /// The dynamic font asset the project-wide override is using, or null.
+        /// </summary>
+        public static TMP_FontAsset GlobalFontAsset => DirectGlobalFont.Asset;
+
+        /// <summary>
+        /// Re-reads the project-wide settings and applies them to everything
+        /// currently loaded. Call it after instantiating a screenful of
+        /// prefabs if you turned the automatic watcher off. Returns false when
+        /// there is nothing configured to apply.
+        /// </summary>
+        public static bool RefreshGlobalFont() => DirectGlobalFont.Apply();
+
+        /// <summary>
+        /// Takes the project-wide override back off every label, restoring the
+        /// font each one had before.
+        /// </summary>
+        public static void ClearGlobalFont() => DirectGlobalFont.Revert();
+
+        // ==========================================
         // Text that reads.
         //
         // The font side of this package answers "the

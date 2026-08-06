@@ -60,18 +60,114 @@ namespace UnityDirectTMP
             if (font == null) { return null; }
             settings = settings.Clamped();
 
-            TMP_FontAsset asset = TMP_FontAsset.CreateFontAsset(
-                font,
-                settings.SamplingPointSize,
-                settings.AtlasPadding,
-                settings.RenderMode,
-                settings.AtlasWidth,
-                settings.AtlasHeight,
-                AtlasPopulationMode.Dynamic,
-                true);
+            // Whatever is wrong with the PROJECT is wrong before the first
+            // font is touched, and saying so here is the difference between a
+            // package that explains itself and one that appears not to have
+            // installed.
+            DirectFontDiagnostics.ReportProjectOnce();
 
-            FinalizeAsset(asset, font.name);
-            return asset;
+            TMP_FontAsset asset = null;
+            try
+            {
+                asset = TMP_FontAsset.CreateFontAsset(
+                    font,
+                    settings.SamplingPointSize,
+                    settings.AtlasPadding,
+                    settings.RenderMode,
+                    settings.AtlasWidth,
+                    settings.AtlasHeight,
+                    AtlasPopulationMode.Dynamic,
+                    true);
+            }
+            catch (Exception e)
+            {
+                DirectTMPLog.Warn($"TextMeshPro's font factory threw on '{font.name}': {e.Message}");
+            }
+
+            if (asset != null)
+            {
+                FinalizeAsset(asset, font.name);
+                RememberSource(asset, ResolveFontFilePath(font), null);
+                return asset;
+            }
+
+            // ==========================================
+            // The route round the importer.
+            //
+            // Everything that makes CreateFontAsset(Font)
+            // return null is a property of the IMPORT, not
+            // of the font: "Include Font Data" switched
+            // off, a baked character set, a Font asset
+            // Unity built rather than imported. The file on
+            // disk is fine in every one of those cases, and
+            // the FontEngine will happily open it by path.
+            //
+            // So the font is read directly. That is what
+            // makes the same .ttf behave the same way in
+            // every project instead of depending on a .meta
+            // file somebody else generated.
+            // ==========================================
+            string filePath = ResolveFontFilePath(font);
+            if (!string.IsNullOrEmpty(filePath))
+            {
+                TMP_FontAsset fromFile = CreateFromPath(filePath, settings);
+                if (fromFile != null)
+                {
+                    DirectTMPLog.Warn(
+                        DirectFontDiagnostics.ExplainFont(font)
+                        + $"\nThe file was read directly from disk instead, so '{font.name}' works anyway — but "
+                        + "fixing the import settings is faster and makes the font behave the same everywhere.");
+                    return fromFile;
+                }
+            }
+
+            // Once per font, not once per label. A failed build is not cached
+            // (so a project that gets fixed recovers without a restart), which
+            // means every enabled label would otherwise re-report it.
+            if (s_reportedFailures.Add(font.GetInstanceID()))
+            {
+                DirectTMPLog.Error(DirectFontDiagnostics.ExplainFont(font), font);
+            }
+            return null;
+        }
+
+        private static readonly HashSet<int> s_reportedFailures = new HashSet<int>();
+
+        // ==========================================
+        // ResolveFontFilePath
+        //
+        // Where a Unity Font actually lives on disk, when
+        // that is knowable. In the Editor the
+        // AssetDatabase always knows. In a player build
+        // nothing does - the .ttf was compiled into the
+        // Font asset and there is no file any more - so
+        // this returns null and the caller reports the
+        // real problem rather than inventing a path.
+        // ==========================================
+        internal static string ResolveFontFilePath(Font font)
+        {
+            if (font == null) { return null; }
+
+#if UNITY_EDITOR
+            try
+            {
+                string assetPath = UnityEditor.AssetDatabase.GetAssetPath(font);
+                if (string.IsNullOrEmpty(assetPath)) { return null; }
+
+                string extension = System.IO.Path.GetExtension(assetPath).ToLowerInvariant();
+                if (System.Array.IndexOf(DirectTMPConstants.FontExtensions, extension) < 0) { return null; }
+
+                string projectRoot = System.IO.Path.GetDirectoryName(Application.dataPath.Replace('\\', '/'));
+                string absolute = (projectRoot + "/" + assetPath).Replace('\\', '/');
+                return System.IO.File.Exists(absolute) ? absolute : null;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+#else
+            return null;
+#endif
         }
 
         // The bytes behind an asset, remembered so DirectFontForms can read the
@@ -163,6 +259,51 @@ namespace UnityDirectTMP
             asset.name = (string.IsNullOrEmpty(sourceName) ? "Font" : sourceName) + DirectTMPConstants.GeneratedAssetSuffix;
             asset.hideFlags = HideFlags.DontSave;
             asset.ReadFontAssetDefinition();
+            EnsureMaterial(asset);
+        }
+
+        // ==========================================
+        // EnsureMaterial
+        //
+        // TextMeshPro builds a generated font asset's
+        // material on ShaderUtilities' cached shader
+        // reference, and in a project whose TMP resources
+        // were never imported that reference is null. A
+        // Material with a null shader is not an error
+        // anybody sees: it is a label that renders
+        // nothing, which reads as "the font did not
+        // apply". So the shader is looked up again by
+        // name here, and if there genuinely is none, the
+        // reason is stated rather than left to be
+        // deduced from a blank screen.
+        // ==========================================
+        private static void EnsureMaterial(TMP_FontAsset asset)
+        {
+            try
+            {
+                if (asset.material != null && asset.material.shader != null) { return; }
+
+                Shader shader = DirectFontDiagnostics.FindDistanceFieldShader();
+                if (shader == null)
+                {
+                    DirectTMPLog.Error(DirectFontDiagnostics.ProjectProblem()
+                        ?? "TextMeshPro's distance-field shader is missing, so this font has no material to draw with.");
+                    return;
+                }
+
+                Texture atlas = asset.atlasTexture;
+                var material = new Material(shader) { hideFlags = HideFlags.DontSave };
+                if (atlas != null) { material.SetTexture(ShaderUtilities.ID_MainTex, atlas); }
+                material.SetFloat(ShaderUtilities.ID_TextureWidth, asset.atlasWidth);
+                material.SetFloat(ShaderUtilities.ID_TextureHeight, asset.atlasHeight);
+                material.SetFloat(ShaderUtilities.ID_GradientScale, asset.atlasPadding + 1);
+
+                asset.material = material;
+            }
+            catch (Exception e)
+            {
+                DirectTMPLog.Warn($"Could not give '{asset.name}' a material: {e.Message}");
+            }
         }
 
         // ==========================================

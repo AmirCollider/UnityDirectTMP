@@ -42,6 +42,74 @@ It's a small component that sits next to your `TextMeshProUGUI` / `TextMeshPro` 
 
 And since **1.0**, it does the same thing for Unity itself.
 
+<a id="new-in-130"></a>
+### 🌐 New in 1.3.0 — one font, the whole project, no component
+
+Adding a component to every label is the right shape for *"this caption is
+special"* and the wrong shape for *"this project is in Persian"*. It has to be
+done on every label, kept on every label, and done again on every label anybody
+makes next week.
+
+**Unity DirectTMP ▸ Global Font…** asks for a `.ttf` and nothing else. From that
+point on every `TextMeshPro - Text (UI)` and `TextMeshPro` in the project is
+drawn from that file, joined and in reading order where the script needs it — in
+the Editor, in Play mode, and in the build.
+
+- **Nothing is added to any GameObject.** No `Direct Font`, no `Direct Text`, no
+  prefab touched, no scene modified.
+- **Nothing is written into a scene, so a scene reload cannot lose it.** The old
+  design stored a font asset that is generated at load and never saved to disk,
+  so the reference came back null on the next reload — that is the whole of the
+  "it disappears when the scene reloads" report, and it was not fixable inside
+  that design. The setting lives in one asset in `Assets/Resources`, and it is
+  applied on every load: domain reload, scene open, entering Play mode, an
+  additive scene loaded at runtime.
+- **Two mechanisms, on purpose.** Every loaded label has its font replaced (so
+  the text is drawn in *your* font), *and* the font is registered in
+  TextMeshPro's own project-wide fallback list (so any label anywhere —
+  including ones instantiated in the tenth minute of play, and ones inside
+  packages you did not write — resolves characters its own font lacks out of
+  yours). Between them there is no label the override cannot reach.
+- **Unity's own interface too**, from the same checkbox: menu bar, Hierarchy,
+  Inspector, Project window, Console. Nothing is written to your Unity
+  installation and quitting Unity is always a complete undo.
+- **A label with its own `Direct Font` is left alone.** Explicit wins.
+
+The per-label components are still there and still work — this is a second way
+in, not a replacement.
+
+<a id="works-in-my-other-project"></a>
+### 🩺 New in 1.3.0 — "it works in my other project"
+
+The same package, the same font file, the same Unity version — working in one
+project and doing nothing at all in the next. It has never once been a
+difference between the two fonts.
+
+A `.ttf` carries no import settings. The `.meta` file beside it does, and that
+file belongs to the *project*. Four project-level facts decide whether a font
+file can become a dynamic atlas, none of them is visible from a scene, and every
+one of them can differ between two projects that look identical:
+
+| What | Why it stops everything |
+|---|---|
+| **TMP Essential Resources** not imported | `TMP_Settings` is null and there is no material for a generated font to sit on. The dialog offering to import them is closed by a lot of people. |
+| **"Include Font Data"** off on the font importer | Unity keeps the font's *name* instead of its bytes, so TextMeshPro's factory has nothing to rasterize and returns `null`. |
+| Importer **Character** set to anything but Dynamic | A fixed bitmap is baked at import time and the outlines are gone. |
+| TextMeshPro's **distance-field shader** not findable | Every generated material is built on a null shader, and a label with one renders nothing. |
+
+None of these produced a message before: the factory returned `null`, the
+component returned quietly, and the label kept whatever font it had — which
+looks exactly like a package that did not install. Now:
+
+- Each of the four is **named in a sentence with the fix in it**, once, in the
+  Console — and every one has its own row with a one-click fix in **Health
+  Check…** and in the **Global Font…** window.
+- The two that are import settings are **worked around outright**: if
+  TextMeshPro cannot read the imported `Font`, the `.ttf` is read **directly off
+  disk** instead, which no importer setting can affect. The font works either
+  way; the settings are repaired anyway, because every *other* tool in the
+  project reads the imported asset and cannot work around anything.
+
 ### 🖥️ New in 1.0 — it can restyle the Editor too
 
 Name a GameObject `敵スポーナー` or a folder `فونت‌ها`, and Unity will store it correctly and then show you `□□□□□` forever. The asset is fine. Unity's own interface is drawn with Unity's own font, and nothing in a TextMeshPro package has ever touched it.
@@ -208,7 +276,17 @@ A welcome screen appears once after installing. It is also at **Unity DirectTMP 
 
 ### 🚀 Usage
 
-**The thirty-second version**
+**The ten-second version — the whole project**
+1. **Unity DirectTMP ▸ Global Font…**
+2. Drop your `.ttf` / `.otf` into **Font file**
+
+That's it. Every TextMeshPro label in the project — including the ones you make
+next week — is drawn from that file, with nothing added to any GameObject and
+nothing written into any scene. Right-clicking the font in the Project window and
+choosing **Unity DirectTMP ▸ Use This Font Everywhere** does the same thing in one
+click.
+
+**The thirty-second version — one label**
 1. Select any GameObject that already has a `TextMeshProUGUI` or `TextMeshPro` on it
 2. **Add Component → Unity DirectTMP → Direct Font**
 3. Drag your `.ttf` / `.otf` into the **Font File** field
@@ -221,6 +299,7 @@ Once installed, a new menu appears in Unity's top menu bar: **Unity DirectTMP**.
 
 ```
 Unity DirectTMP
+├── Global Font…             (one .ttf, every label, no component)
 ├── Font Catalog…            (every font, and what's really in it)
 ├── Editor Font
 │   ├── Choose a Font…       (restyle Unity's own interface)
@@ -240,7 +319,7 @@ Unity DirectTMP
 └── About Unity DirectTMP
 ```
 
-The three windows are also under **Window ▸ Unity DirectTMP**, and every batch action is on the Project window's right-click menu for any font file or folder.
+The windows are also under **Window ▸ Unity DirectTMP**, and every batch action is on the Project window's right-click menu for any font file or folder — including **Use This Font Everywhere**, which is the one-click version of the Global Font window.
 
 > **The menu isn't there?** That is almost always a compile error rather than a missing menu — when an editor assembly fails to compile, Unity drops every menu item in it at once. Check the Console first, then open **Window ▸ Unity DirectTMP ▸ Health Check**, which is written to explain exactly this case.
 
@@ -294,6 +373,9 @@ material, same everything
 ```
 UnityDirectTMP/
 ├── Runtime/
+│   ├── DirectGlobalFont.cs     ← one font, the whole project, no component
+│   ├── DirectGlobalFontConfig.cs ← the settings asset in Assets/Resources
+│   ├── DirectFontDiagnostics.cs  ← why it works in one project and not another
 │   ├── DirectFont.cs           ← the component you drop next to TMP
 │   ├── DirectFontLoader.cs     ← font file → live font face
 │   ├── DirectFontFactory.cs    ← the TextMeshPro bridge
@@ -305,11 +387,13 @@ UnityDirectTMP/
 │   ├── DirectBidi.cs           ← the Unicode bidirectional algorithm (UAX #9)
 │   ├── DirectDisplayText.cs    ← both of the above, in the order they must happen
 │   ├── DirectRichText.cs       ← the same, over text with <b> and <color> in it
+│   ├── DirectTextEngine.cs     ← the shaping pipeline, with no MonoBehaviour
 │   ├── DirectText.cs           ← the component that makes a TMP label read
 │   └── DirectTMP.cs            ← the small public API
 ├── Editor/
 │   ├── Brand/                  ← the Inkwell palette, Inky, the text pack
 │   ├── Catalog/                ← the Font Catalog
+│   ├── GlobalFont/             ← the project-wide font: window + bootstrap
 │   ├── EditorFont/             ← restyling Unity's own interface
 │   ├── DirectFontInspector.cs  ← Inspector drawer + live read-out
 │   ├── DirectTMPConverter.cs   ← batch conversion for Scenes & Prefabs
@@ -402,6 +486,38 @@ Also on the shelf: 🧋 [**Unity DocSnap**](https://amircollider.n95pluss.worker
 これは `TextMeshProUGUI` / `TextMeshPro` の隣に置く小さなコンポーネントで、焼き上げ済みのSDFフォントアセットではなく、**フォントファイルそのもの**(ふつうの `.ttf` や `.otf`)を直接指定できるようにするものです。グリフは最初に描画された瞬間にフォントファイルから生成されるので、そのフォントが持っている文字はすべて、すぐにそのまま使えます。日本語、中国語、韓国語、ペルシャ語、アラビア語、タイ語、キリル文字、記号——全部です。
 
 そして **1.0** からは、Unity 自身に対しても同じことをします。
+
+### 🌐 1.3.0 の新機能 — フォント 1 つ、プロジェクト全体、コンポーネント不要
+
+ラベルごとにコンポーネントを付ける方式は、「このキャプションだけ特別」には合っていますが、「このプロジェクトはペルシャ語です」には合っていません。すべてのラベルに付けて、付けたままにして、来週誰かが作るラベルにも付け直す必要があるからです。
+
+**Unity DirectTMP ▸ Global Font…** は `.ttf` を 1 つ聞くだけです。それ以降、プロジェクト内のすべての `TextMeshPro - Text (UI)` と `TextMeshPro` がそのファイルから描画され、必要な文字体系では結合・並べ替えも行われます。エディタでも、Play モードでも、ビルドでも同じです。
+
+- **どの GameObject にも何も追加しません。** `Direct Font` も `Direct Text` も付かず、プレハブもシーンも変更されません。
+- **シーンには何も書き込まれないので、シーンを再読み込みしても失われません。** 従来の方式は、読み込み時に生成されてディスクには保存されないフォントアセットへの参照を保存していたため、次に開いたときには参照が null になっていました。これが「シーンをリロードすると消える」という報告のすべてで、あの設計の内側では直せない問題でした。設定は `Assets/Resources` の 1 つのアセットにあり、ドメインリロード・シーンを開いたとき・Play モードに入ったとき・実行時のアディティブロードのたびに適用されます。
+- **意図的に 2 つの仕組み**を併用します。読み込み済みのラベルはフォントを差し替えられ(＝あなたのフォントで描画され)、同時にそのフォントは TextMeshPro 自身のプロジェクト全体のフォールバックリストにも登録されます(＝どのラベルでも、実行 10 分後に生成されたものでも、他社パッケージ内のものでも、自分のフォントにない文字をあなたのフォントから補えます)。この 2 つで、上書きが届かないラベルは存在しません。
+- **Unity 自身の UI にも**、同じチェックボックス 1 つで適用できます。Unity のインストール先には何も書き込まれず、終了すれば必ず元に戻ります。
+- **`Direct Font` が付いているラベルはそのまま**にされます。明示的な指定が優先です。
+
+ラベル単位のコンポーネントは今も健在です。これは置き換えではなく、2 つ目の入り口です。
+
+### 🩺 1.3.0 の新機能 — 「別のプロジェクトでは動くのに」
+
+同じパッケージ、同じフォントファイル、同じ Unity バージョンなのに、片方のプロジェクトでは動き、もう片方では何も起きない。原因が 2 つのフォントの違いだったことは一度もありません。
+
+`.ttf` はインポート設定を持ちません。持っているのは隣の `.meta` ファイルで、それは*プロジェクト*のものです。フォントファイルが動的アトラスになれるかどうかは、シーンからは見えない 4 つのプロジェクト側の事実で決まり、そのどれもが、見た目が同じ 2 つのプロジェクトの間で違い得ます。
+
+| 何が | なぜ全部止まるか |
+|---|---|
+| **TMP Essential Resources** 未インポート | `TMP_Settings` が null で、生成されたフォントが使うマテリアルも存在しません。 |
+| フォントインポーターの **Include Font Data** がオフ | Unity がバイト列ではなくフォント*名*だけを保持するため、TextMeshPro のファクトリは何も読めず `null` を返します。 |
+| インポーターの **Character** が Dynamic 以外 | インポート時に固定ビットマップが焼かれ、アウトラインは失われます。 |
+| TextMeshPro の **Distance Field シェーダー**が見つからない | 生成されたマテリアルが null シェーダー上に作られ、何も描画されません。 |
+
+これまでは、どれもメッセージを出しませんでした。ファクトリが `null` を返し、コンポーネントは黙って戻り、ラベルは元のフォントのまま——「インストールされていない」ようにしか見えません。1.3.0 からは:
+
+- 4 つそれぞれが、**対処法を含む 1 文**として Console に一度だけ出ます。**Health Check…** と **Global Font…** ウィンドウにも、ワンクリックの修正ボタン付きで並びます。
+- インポート設定に起因する 2 つは、**そもそも回避されます**。TextMeshPro がインポート済みの `Font` を読めない場合は、`.ttf` を**ディスクから直接**読みます。インポート設定は一切影響しません。フォントはどちらでも動きますが、設定自体も修正されます。プロジェクト内の*ほかの*ツールはインポート済みアセットしか読めず、回避のしようがないからです。
 
 ### 🖥️ 1.0 の新機能 — エディタ自体のフォントも変えられます
 
@@ -564,6 +680,7 @@ ZWNJ(`می‌شه` / `فونت‌ها`)、ペルシア語文中のラテン文�
 
 ```
 Unity DirectTMP
+├── Global Font…             (.ttf を 1 つ、全ラベルに、コンポーネントなしで)
 ├── Font Catalog…            (すべてのフォントと、その中身)
 ├── Editor Font
 │   ├── Choose a Font…       (Unity 自身の UI を変更)
@@ -642,6 +759,38 @@ MIT — 詳細は [LICENSE](LICENSE) をご覧ください。無料です。リ�
 این یه کامپوننت کوچیکه که کنار `TextMeshProUGUI` یا `TextMeshPro` می‌شینه و اجازه می‌ده به‌جای یه فونت‌اسِت SDF از پیش پخته‌شده، **خودِ فایل فونت** — یه `.ttf` یا `.otf` ساده — رو بهش بدی. گلیف‌ها همون لحظه‌ای که برای اولین بار قراره کشیده بشن مستقیم از همون فایل ساخته می‌شن؛ یعنی هر کاراکتری که فونت واقعاً داره بدون معطلی در دسترسه.
 
 و از نسخه‌ی **۱.۰** به بعد، همین کار رو برای خودِ یونیتی هم انجام می‌ده.
+
+### 🌐 تازه در ۱.۳.۰ — یک فونت، کل پروژه، بدون هیچ کامپوننتی
+
+اضافه کردن کامپوننت به هر لیبل برای «این یه کپشن خاصه» جواب می‌ده و برای «این پروژه فارسیه» جواب نمی‌ده. باید روی هر لیبل انجام بشه، روی هر لیبل بمونه، و هفته‌ی بعد روی هر لیبلی که یکی دیگه می‌سازه دوباره انجام بشه.
+
+مسیر **Unity DirectTMP ▸ Global Font…** فقط یه `.ttf` ازت می‌خواد. از اون لحظه به بعد هر `TextMeshPro - Text (UI)` و `TextMeshPro` توی پروژه از همون فایل کشیده می‌شه — چسبیده و به ترتیب درست، هرجا که خط بهش نیاز داره — توی ادیتور، توی Play mode و توی بیلد.
+
+- **هیچ‌چیزی به هیچ GameObject ای اضافه نمی‌شه.** نه `Direct Font`، نه `Direct Text`، نه دست خوردن پریفب، نه تغییر سین.
+- **چیزی داخل سین نوشته نمی‌شه، پس ریلود شدن سین نمی‌تونه از بینش ببره.** طراحی قبلی یه فونت‌اسِت رو ذخیره می‌کرد که موقع لود ساخته می‌شه و هیچ‌وقت روی دیسک ذخیره نمی‌شه؛ برای همین دفعه‌ی بعد که سین باز می‌شد اون رفرنس null برمی‌گشت. کل گزارش «با ریلود شدن سین پاک می‌شه» همینه، و داخل اون طراحی اصلاً قابل رفع نبود. حالا تنظیمات توی یه اسست داخل `Assets/Resources` زندگی می‌کنه و روی **هر** لود دوباره اعمال می‌شه: ریلود دامین، باز شدن سین، ورود به Play mode، و لود شدن additive یه سین موقع اجرا.
+- **دو تا مکانیزم، عمداً.** فونت همه‌ی لیبل‌های لودشده عوض می‌شه (یعنی متن با فونتِ *تو* کشیده می‌شه)، و *همزمان* همون فونت توی لیست fallback سراسری خودِ TextMeshPro ثبت می‌شه (یعنی هر لیبلی، حتی اونی که دقیقه‌ی دهم بازی Instantiate شده، حتی اونی که داخل پکیج یکی دیگه‌ست، کاراکترهای نداشته‌ی فونت خودش رو از فونت تو پیدا می‌کنه). با این دو تا، هیچ لیبلی نیست که این بازنویسی بهش نرسه.
+- **خودِ رابط یونیتی هم**، با همون یه تیک: نوار منو، Hierarchy، Inspector، پنجره‌ی Project و Console. هیچ‌چیزی روی نصب یونیتی نوشته نمی‌شه و بستن یونیتی همیشه یه undo کامله.
+- **لیبلی که `Direct Font` خودش رو داره دست نمی‌خوره.** صراحت برنده‌ست.
+
+کامپوننت‌های تک‌لیبلی هنوز هستن و هنوز کار می‌کنن — این یه درِ دومه، نه جایگزین.
+
+### 🩺 تازه در ۱.۳.۰ — «توی اون یکی پروژه‌م کار می‌کنه»
+
+همون پکیج، همون فایل فونت، همون نسخه‌ی یونیتی — توی یه پروژه کار می‌کنه و توی اون یکی اصلاً هیچ اتفاقی نمی‌افته. حتی یه بار هم علتش تفاوت اون دو تا فونت نبوده.
+
+یه `.ttf` هیچ تنظیمات ایمپورتی با خودش نداره. چیزی که داره، فایل `.meta` کنارشه — و اون فایل مال *پروژه*ست. چهار تا واقعیتِ سطح‌پروژه تعیین می‌کنن که یه فایل فونت می‌تونه تبدیل به اطلس داینامیک بشه یا نه، هیچ‌کدومشون از داخل سین دیده نمی‌شن، و هر چهارتاشون می‌تونن بین دو پروژه‌ی به‌ظاهر یکسان فرق داشته باشن:
+
+| چی | چرا همه‌چیز رو متوقف می‌کنه |
+|---|---|
+| **TMP Essential Resources** ایمپورت نشده | `TMP_Settings` برابر null می‌شه و متریالی برای نشستن فونت ساخته‌شده وجود نداره. |
+| **Include Font Data** روی ایمپورتر خاموشه | یونیتی به‌جای بایت‌های فونت فقط *اسمش* رو نگه می‌داره، پس factory مربوط به TextMeshPro چیزی برای رستر کردن نداره و `null` برمی‌گردونه. |
+| **Character** روی ایمپورتر چیزی غیر از Dynamic | موقع ایمپورت یه بیت‌مپ ثابت پخته می‌شه و outline ها از بین می‌رن. |
+| **شیدر Distance Field** پیدا نمی‌شه | هر متریال ساخته‌شده روی یه شیدر null بنا می‌شه و لیبلی که اون رو داره هیچی نمی‌کشه. |
+
+هیچ‌کدوم از این‌ها قبلاً پیام نمی‌داد: factory مقدار `null` برمی‌گردوند، کامپوننت بی‌صدا برمی‌گشت و لیبل همون فونت قبلیش رو نگه می‌داشت — که دقیقاً شبیه پکیجیه که اصلاً نصب نشده. حالا:
+
+- هر چهارتا **با یه جمله که راه‌حل توشه** نام برده می‌شن، یک بار، توی Console — و هر کدوم ردیف خودش رو با دکمه‌ی تک‌کلیکی توی **Health Check…** و پنجره‌ی **Global Font…** داره.
+- اون دوتایی که تنظیمات ایمپورت‌ان **کلاً دور زده می‌شن**: اگه TextMeshPro نتونه `Font` ایمپورت‌شده رو بخونه، خودِ `.ttf` **مستقیم از روی دیسک** خونده می‌شه، و هیچ تنظیم ایمپورتی روی این اثر نداره. فونت به هر حال کار می‌کنه؛ ولی تنظیمات هم درست می‌شن، چون *بقیه‌ی* ابزارهای پروژه اسست ایمپورت‌شده رو می‌خونن و هیچ راه دور زدنی ندارن.
 
 ### 🖥️ تازه در ۱.۰ — روی خودِ ادیتور یونیتی هم اثر می‌ذاره
 
@@ -809,6 +958,7 @@ DirectBidi.Reorder("אב TMP גד");            // "דג TMP בא"
 
 ```
 Unity DirectTMP
+├── Global Font…             (یک .ttf، همه‌ی متن‌ها، بدون کامپوننت)
 ├── Font Catalog…            (همه‌ی فونت‌ها و اینکه واقعاً چی توشونه)
 ├── Editor Font
 │   ├── Choose a Font…       (رابط خود یونیتی رو عوض کن)

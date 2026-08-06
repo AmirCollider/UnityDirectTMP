@@ -10,6 +10,7 @@
 // reader concludes the install is broken.
 //
 //   Unity DirectTMP
+//   ├── Global Font…
 //   ├── Font Catalog…
 //   ├── Editor Font
 //   │   ├── Choose a Font…
@@ -58,6 +59,14 @@ namespace UnityDirectTMP.Editor
         // ==========================================
         public const string MenuRoot = "Unity DirectTMP/";
 
+        // ==========================================
+        // Global Font… - first, because it is the whole
+        // package in one screen. Everything below it is
+        // for the project that wants something more
+        // specific than "use this font".
+        // ==========================================
+        public const string MenuGlobalFont = MenuRoot + "Global Font…";
+
         public const string MenuCatalog = MenuRoot + "Font Catalog…";
 
         public const string MenuEditorFont = MenuRoot + "Editor Font/Choose a Font…";
@@ -104,6 +113,7 @@ namespace UnityDirectTMP.Editor
         // batch operations stay in one place.
         // ==========================================
         public const string WindowRoot = "Window/Unity DirectTMP/";
+        public const string WindowGlobalFont = WindowRoot + "Global Font";
         public const string WindowCatalog = WindowRoot + "Font Catalog";
         public const string WindowEditorFont = WindowRoot + "Editor Font";
         public const string WindowHealthCheck = WindowRoot + "Health Check";
@@ -115,6 +125,11 @@ namespace UnityDirectTMP.Editor
         // batch conversions, the housekeeping, and the
         // about-box tail.
         // ==========================================
+        // Negative, so Global Font sits above everything
+        // without renumbering a menu tree the README
+        // already draws.
+        public const int PriorityGlobalFont = -1;
+
         public const int PriorityCatalog = 0;
         public const int PriorityEditorFont = 1;
         public const int PriorityEditorFontRevert = 2;
@@ -141,6 +156,7 @@ namespace UnityDirectTMP.Editor
         public const string AssetsContextRoot = "Assets/Unity DirectTMP/";
         public const string ContextConvertFolder = AssetsContextRoot + "Convert TMP In Folder";
         public const string ContextNewFallbackChain = AssetsContextRoot + "New Fallback Chain";
+        public const string ContextUseEverywhere = AssetsContextRoot + "Use This Font Everywhere";
         public const string ContextUseForEditor = AssetsContextRoot + "Use This Font For The Editor";
         public const string ContextInspectFont = AssetsContextRoot + "Inspect This Font";
 

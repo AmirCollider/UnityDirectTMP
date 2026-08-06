@@ -20,10 +20,24 @@ namespace UnityDirectTMP.Editor
     internal static class DirectTMPMenu
     {
         // ==========================================
+        // Global Font…
+        //
+        // First in the menu because it is the shortest
+        // path from installing the package to the package
+        // having done its job: pick a .ttf, and every
+        // TextMeshPro label in the project is drawn from
+        // it, with nothing added to any GameObject and
+        // nothing written into any scene.
+        // ==========================================
+        [MenuItem(DirectTMPEditorConstants.MenuGlobalFont, false, DirectTMPEditorConstants.PriorityGlobalFont)]
+        [MenuItem(DirectTMPEditorConstants.WindowGlobalFont, false, 2199)]
+        private static void OpenGlobalFont() => DirectGlobalFontWindow.ShowWindow();
+
+        // ==========================================
         // Font Catalog…
-        // First in the menu because it is the answer to
-        // the question people install this package with:
-        // "which of my fonts can set this language?"
+        // The answer to the question people install this
+        // package with: "which of my fonts can set this
+        // language?"
         // ==========================================
         [MenuItem(DirectTMPEditorConstants.MenuCatalog, false, DirectTMPEditorConstants.PriorityCatalog)]
         [MenuItem(DirectTMPEditorConstants.WindowCatalog, false, 2200)]
@@ -111,6 +125,11 @@ namespace UnityDirectTMP.Editor
             }
 
             DirectTMPLog.Info($"Cleared {released} cached atlas(es) and {filesDeleted} spooled font file(s).");
+
+            // The project-wide font was one of those atlases, and every label
+            // in the scene is pointing at it. Rebuild it now rather than
+            // leaving a project that looks like clearing a cache broke it.
+            DirectGlobalFontBootstrap.ApplyNow();
         }
 
         // ==========================================
@@ -209,6 +228,38 @@ namespace UnityDirectTMP.Editor
             Selection.activeObject = chain;
             EditorGUIUtility.PingObject(chain);
         }
+
+        // ==========================================
+        // Project window ▸ Use This Font Everywhere
+        //
+        // Right-clicking the .ttf and choosing this is
+        // the entire package in one action: the settings
+        // asset is created if the project has none, the
+        // font's import settings are repaired if they
+        // would have stopped TextMeshPro reading it, and
+        // every label in the project is drawn from it
+        // from the next repaint onward.
+        // ==========================================
+        [MenuItem(DirectTMPEditorConstants.ContextUseEverywhere, false, 29)]
+        private static void ContextUseEverywhere()
+        {
+            var font = Selection.activeObject as Font;
+            if (font == null) { return; }
+
+            DirectGlobalFontConfig config = DirectGlobalFontBootstrap.EnsureConfigAsset();
+            if (config == null) { return; }
+
+            Undo.RecordObject(config, "Unity DirectTMP Global Font");
+            config.FontFile = font;
+            config.Active = true;
+
+            DirectGlobalFontBootstrap.RepairImport(font);
+            DirectGlobalFontBootstrap.SaveAndApply(config);
+            DirectGlobalFontWindow.ShowWindow();
+        }
+
+        [MenuItem(DirectTMPEditorConstants.ContextUseEverywhere, true)]
+        private static bool ValidateContextUseEverywhere() => Selection.activeObject is Font;
 
         // ==========================================
         // Project window ▸ Use This Font For The Editor
