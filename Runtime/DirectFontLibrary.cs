@@ -40,8 +40,9 @@ namespace UnityDirectTMP
 
         /// <summary>
         /// The font file behind an asset, or null. Falls back to the asset's
-        /// own <c>sourceFontFile</c> path when the asset was not made here -
-        /// which is how a font asset somebody else built still gets joined.
+        /// own <c>sourceFontFile</c> - through the AssetDatabase in the Editor
+        /// and through the baked table in a player build - which is how a font
+        /// asset somebody else built still gets joined.
         /// </summary>
         public static byte[] BytesFor(TMP_FontAsset asset)
         {
@@ -49,19 +50,29 @@ namespace UnityDirectTMP
 
             if (s_sources.TryGetValue(asset.GetInstanceID(), out Func<byte[]> source))
             {
-                try { return source(); } catch { /* fall through */ }
+                try
+                {
+                    byte[] remembered = source();
+                    if (remembered != null && remembered.Length > 0) { return remembered; }
+                }
+                catch { /* fall through */ }
             }
+
+            Font file = null;
+            try { file = asset.sourceFontFile; } catch { /* fall through */ }
 
 #if UNITY_EDITOR
             try
             {
-                Font font = asset.sourceFontFile;
-                string path = font == null ? null : UnityEditor.AssetDatabase.GetAssetPath(font);
+                string path = file == null ? null : UnityEditor.AssetDatabase.GetAssetPath(file);
                 if (!string.IsNullOrEmpty(path) && File.Exists(path)) { return File.ReadAllBytes(path); }
             }
             catch { /* fall through */ }
 #endif
-            return null;
+
+            // The only route left in a player build, where there is no
+            // AssetDatabase and no .ttf on disk to read.
+            return DirectFontBytes.For(file);
         }
 
         /// <summary>Forgets everything. Paired with <see cref="DirectFontLibrary.ClearCache"/>.</summary>
@@ -146,7 +157,7 @@ namespace UnityDirectTMP
             }
 
             asset.name = font.name + " (DirectTMP)";
-            RememberFile(asset, PathOf(font));
+            RememberImported(asset, font);
             s_cache[key] = asset;
             return asset;
         }
@@ -259,6 +270,38 @@ namespace UnityDirectTMP
         {
             if (string.IsNullOrEmpty(path)) { return; }
             DirectFontSource.Remember(asset, () => File.Exists(path) ? File.ReadAllBytes(path) : null);
+        }
+
+        // ==========================================
+        // An imported Font asset has two possible
+        // routes to its own file, and which one is
+        // open depends on where the game is running.
+        //
+        //   Editor - AssetDatabase knows where the .ttf
+        //            is, so it is read off disk.
+        //   Player - there is no AssetDatabase and no
+        //            .ttf, so the bytes have to have been
+        //            baked into the build beforehand.
+        //
+        // Both are registered as one source that tries
+        // them in that order, because a path that was
+        // valid when the asset was built can stop being
+        // valid - and falling through to the baked copy
+        // is better than falling through to no joining
+        // rules at all.
+        // ==========================================
+        private static void RememberImported(TMP_FontAsset asset, Font font)
+        {
+            if (asset == null || font == null) { return; }
+
+            string path = PathOf(font);
+
+            DirectFontSource.Remember(asset, () =>
+            {
+                if (!string.IsNullOrEmpty(path) && File.Exists(path)) { return File.ReadAllBytes(path); }
+
+                return DirectFontBytes.For(font);
+            });
         }
 
         private static string PathOf(Font font)
