@@ -5,6 +5,41 @@ All notable changes to **Unity DirectTMP** are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.3]
+
+### Fixed
+- **One letter in a word could come out unattached while the rest were fine** —
+  reported as ص: `کص` broke, `کصس` did not. Same letter, same font; the only
+  difference is that the first needs ص's **final** shape and the second needs
+  its **medial** one.
+
+  Shapes were being taken from the font's legacy presentation block
+  (`U+FE70..FEFF` / `U+FB50..FBFF`) whenever it had them, and only from the
+  font's own OpenType joining rules when it did not. The legacy block is where
+  a great many Persian fonts are careless: IranianSans carries a final sad at
+  `U+FEBA` that is not drawn with a connecting stroke, while its medial sad is
+  correct. So the one shape that block got wrong was the one shape that broke.
+
+  The order is now reversed — **the font's own `GSUB` first, the legacy block
+  only as a fallback for fonts with no joining rules at all.** GSUB is what the
+  font uses when a real shaping engine sets it, so it is what the designer drew
+  and tested. It is also one source of shapes per word instead of two: a word
+  taking its kaf from Forms-A and its sad from Forms-B was taking two designs
+  and hoping they met.
+
+- A shape resolved from `GSUB` now **replaces** a character TextMeshPro had
+  already added from the cmap, rather than being added alongside it.
+
+### Added
+- **Diagnose Selected Label** now reports, per shaped codepoint, whether its
+  glyph came from the font's own joining rules (`gsub`) or from the legacy
+  presentation block (`cmap`) — and says so plainly when any came from the
+  latter, since that is nearly always the answer to "why is this one letter
+  wrong".
+- `joining rules read` in that report is now meaningful. It previously said
+  `NO` whenever the font's GSUB had never been *asked for*, which was every
+  font that had a presentation block — the opposite of informative.
+
 ## [2.1.2]
 
 ### Fixed

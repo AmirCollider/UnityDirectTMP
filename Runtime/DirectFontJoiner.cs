@@ -153,23 +153,50 @@ namespace UnityDirectTMP
 
         private bool _dirty;
 
+        // Which source each shape's glyph came from, for the diagnostic. The
+        // answer to "why does this one letter look wrong" is nearly always
+        // "because it came from the other one".
+        private readonly Dictionary<char, string> _source = new Dictionary<char, string>();
+
+        /// <summary>
+        /// Where the glyph behind a shaped codepoint came from - "gsub" for the
+        /// font's own joining rules, "cmap" for the legacy presentation block,
+        /// or null when this codepoint was not one we resolved.
+        /// </summary>
+        public string SourceOf(char codepoint)
+            => _source.TryGetValue(codepoint, out string source) ? source : null;
+
         // ==========================================
         // Resolve
         //
-        // The order matters, and it is cheapest-first:
+        // The order matters, and it is the FONT'S OWN
+        // ANSWER first:
         //
         //   1. The isolated shape is the plain letter.
         //      Nothing to add, and it is the shape most
         //      letters in most strings are in.
-        //   2. The presentation codepoint, if the font
-        //      has one in its cmap. TextMeshPro can add
-        //      that by itself, through public API, with
-        //      no reflection and no glyph indices.
-        //   3. The font's own GSUB, registered by glyph
-        //      index. This is the path every modern
-        //      Persian face takes, and the one the old
-        //      implementation only ever reached as a
-        //      rescue that was allowed to fail silently.
+        //   2. The font's own GSUB, registered by glyph
+        //      index. This is what the font uses when a
+        //      real shaping engine sets it, so it is what
+        //      the designer drew and tested.
+        //   3. Only then the presentation codepoint from
+        //      the cmap, for a font with no OpenType
+        //      joining rules at all.
+        //
+        // Asking the cmap first - which is what 2.1.2 did,
+        // because it is cheaper - trusts a block that a
+        // great many Persian fonts fill in badly or
+        // half-way. IranianSans is one: its FEBA, the
+        // FINAL sad, is not drawn with a connecting
+        // stroke, while its MEDIAL sad is. So "کص" came
+        // apart and "کصس" did not - one letter, one shape,
+        // and only in the shape that the legacy block got
+        // wrong.
+        //
+        // It is also the difference between one source of
+        // shapes per word and two. A word taking its kaf
+        // from Forms-A and its sad from Forms-B is taking
+        // two designs and hoping they meet.
         // ==========================================
         /// <summary>
         /// A codepoint that draws <paramref name="letter"/> in
@@ -186,37 +213,38 @@ namespace UnityDirectTMP
 
             char presentation = DirectJoining.PresentationForm(letter, form);
 
-            // The font already carries the legacy codepoint - Segoe UI, Noto
-            // Naskh, DejaVu and most of what predates OpenType shaping.
+            // ---- the font's own tables, first ----
+            uint glyph = GlyphFor(letter, form);
+            if (glyph != 0)
+            {
+                char address = presentation != '\0' ? presentation : NextPrivateUse();
+
+                if (address != '\0' && Register(address, glyph))
+                {
+                    _source[address] = "gsub";
+                    _resolved[key] = address;
+                    return address;
+                }
+
+                // Rasterizing can fail for reasons that pass - no atlas yet,
+                // no face loaded. Not remembered, so the next label tries again
+                // rather than inheriting a verdict from a bad moment.
+                return '\0';
+            }
+
+            // ---- the legacy block, second ----
             if (presentation != '\0' && TryAddByCodepoint(presentation))
             {
+                _source[presentation] = "cmap";
                 _resolved[key] = presentation;
                 return presentation;
             }
 
-            uint glyph = GlyphFor(letter, form);
-            if (glyph == 0)
-            {
-                // A permanent no: the font's own tables name no glyph for this
-                // shape. Remembering it costs one dictionary entry and saves
-                // re-reading the GSUB for every label on screen.
-                _resolved[key] = '\0';
-                return '\0';
-            }
-
-            char target = presentation != '\0' ? presentation : NextPrivateUse();
-            if (target == '\0') { _resolved[key] = '\0'; return '\0'; }
-
-            if (!Register(target, glyph))
-            {
-                // Rasterizing can fail for reasons that pass - no atlas yet,
-                // no font face loaded. Not remembered, so the next label tries
-                // again rather than inheriting a verdict from a bad moment.
-                return '\0';
-            }
-
-            _resolved[key] = target;
-            return target;
+            // A permanent no: neither the font's GSUB nor its cmap names a
+            // glyph for this shape. Remembering it saves asking again for
+            // every label on screen.
+            _resolved[key] = '\0';
+            return '\0';
         }
 
         /// <summary>
@@ -236,16 +264,18 @@ namespace UnityDirectTMP
             int key = (target << 2) | 3;   // form 3 is unused for ligatures
             if (_resolved.TryGetValue(key, out char cached)) { return cached; }
 
-            if (TryAddByCodepoint(target))
+            uint glyph = Joined()?.LigatureGlyph(alef, form) ?? 0u;
+            if (glyph != 0)
             {
+                if (!Register(target, glyph)) { return '\0'; }
+
+                _source[target] = "gsub";
                 _resolved[key] = target;
                 return target;
             }
 
-            uint glyph = Joined()?.LigatureGlyph(alef, form) ?? 0u;
-            if (glyph == 0) { _resolved[key] = '\0'; return '\0'; }
-
-            if (!Register(target, glyph)) { return '\0'; }
+            if (!TryAddByCodepoint(target)) { _resolved[key] = '\0'; return '\0'; }
+            _source[target] = "cmap";
 
             _resolved[key] = target;
             return target;
@@ -355,7 +385,21 @@ namespace UnityDirectTMP
                 if (glyph == null) { return false; }
 
                 var character = new TMP_Character(codepoint, glyph) { textAsset = _asset };
-                _asset.characterTable.Add(character);
+
+                // The asset may already hold this codepoint - TextMeshPro adds
+                // it from the cmap the moment anything draws it. Ours is the
+                // font's own answer, so it replaces rather than duplicates.
+                if (_asset.characterLookupTable.TryGetValue(codepoint, out TMP_Character present))
+                {
+                    int at = _asset.characterTable.IndexOf(present);
+                    if (at >= 0) { _asset.characterTable[at] = character; }
+                    else { _asset.characterTable.Add(character); }
+                }
+                else
+                {
+                    _asset.characterTable.Add(character);
+                }
+
                 _asset.characterLookupTable[codepoint] = character;
                 _dirty = true;
                 return true;

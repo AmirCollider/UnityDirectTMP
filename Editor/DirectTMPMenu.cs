@@ -162,25 +162,43 @@ namespace UnityDirectTMP.EditorTools
                 report.Append("  joining problem       : ").Append(joiner.Problem).Append('\n');
             }
 
-            // The question that decides whether anything renders.
+            // The two questions that decide what actually appears: can each
+            // shape be drawn at all, and WHERE did its glyph come from. A
+            // shape taken from the legacy presentation block is the usual
+            // reason one letter in a word looks unattached while the rest are
+            // fine - plenty of Persian fonts fill that block in badly.
             string missing = string.Empty;
+            string sources = string.Empty;
+
             for (int i = 0; i < shaped.Length; i++)
             {
                 char c = shaped[i];
                 if (c == '\n' || c == '\r' || c == '\t') { continue; }
-                if (asset.HasCharacter(c, true, true)) { continue; }
 
-                missing += $" U+{(int)c:X4}";
+                if (!asset.HasCharacter(c, true, true)) { missing += $" U+{(int)c:X4}"; }
+
+                string from = joiner.SourceOf(c);
+                if (from != null) { sources += $" U+{(int)c:X4}={from}"; }
             }
 
             report.Append("  characters missing    : ")
                   .Append(missing.Length == 0 ? "none — every shape can be drawn" : missing)
                   .Append('\n');
 
+            report.Append("  shape came from       : ")
+                  .Append(sources.Length == 0 ? "(nothing needed a joined shape)" : sources.Trim())
+                  .Append('\n');
+
             if (missing.Length > 0)
             {
-                report.Append("  → those render as boxes. If they are U+FExx or U+FBxx the font's own\n")
-                      .Append("    GSUB could not be read; if U+Exxx the glyph could not be rasterized.\n");
+                report.Append("  → those render as boxes.\n");
+            }
+
+            if (sources.Contains("=cmap"))
+            {
+                report.Append("  → shapes marked cmap come from the font's legacy presentation block\n")
+                      .Append("    rather than its own joining rules. If one of those letters is the\n")
+                      .Append("    one that looks wrong, the font's copy of that block is at fault.\n");
             }
         }
 
