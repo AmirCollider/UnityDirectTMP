@@ -1,0 +1,26 @@
+# Text files are normalised to LF in the repository and checked out
+# with the platform's own endings. Without this, a package edited on
+# Windows and on macOS produces diffs that are entirely line endings.
+* text=auto eol=lf
+
+# Unity's own text formats, named explicitly so a merge tool never
+# guesses "binary" at one of them.
+*.cs        text diff=csharp
+*.meta      text
+*.asmdef    text
+*.json      text
+*.md        text
+*.yml       text
+*.shader    text
+*.uss       text
+*.uxml      text
+
+# Fonts, images and anything Unity serializes as binary.
+*.ttf       binary
+*.otf       binary
+*.ttc       binary
+*.png       binary
+*.jpg       binary
+*.psd       binary
+*.dll       binary
+*.unitypackage binary
