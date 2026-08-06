@@ -330,10 +330,43 @@ namespace UnityDirectTMP
         {
             if (!fixWrappedLines || _label == null || !Wraps()) { return DirectTMP.Prepare(text, _asset); }
 
+            // A line break the author typed is a paragraph boundary, and each
+            // paragraph wraps on its own. Treating one as a reason to skip all
+            // of this - which is what 2.1.4 did - meant any text with a blank
+            // line in it fell straight back to the whole-paragraph reordering
+            // this method exists to replace, and came out in the wrong order
+            // exactly as before.
+            if (text.IndexOf('\n') < 0) { return Paragraph(text); }
+
+            var built = new System.Text.StringBuilder(text.Length + 8);
+            int start = 0;
+
+            while (true)
+            {
+                int newline = text.IndexOf('\n', start);
+                int end = newline < 0 ? text.Length : newline;
+
+                built.Append(Paragraph(text.Substring(start, end - start)));
+
+                if (newline < 0) { break; }
+
+                built.Append('\n');
+                start = newline + 1;
+            }
+
+            return built.ToString();
+        }
+
+        // One paragraph: shaped, broken where TextMeshPro would break it, and
+        // reordered a line at a time.
+        private string Paragraph(string text)
+        {
+            if (string.IsNullOrEmpty(text)) { return text; }
+
             string shaped = DirectTMP.Shape(text, _asset);
 
             int[] breaks = LineBreaksOf(shaped);
-            if (breaks == null || breaks.Length <= 1) { return DirectTMP.Prepare(text, _asset); }
+            if (breaks == null || breaks.Length <= 1) { return DirectTMP.Reorder(shaped); }
 
             var built = new System.Text.StringBuilder(shaped.Length + breaks.Length);
 
@@ -367,8 +400,6 @@ namespace UnityDirectTMP
         // Always starts with 0; null when it could not be measured.
         private int[] LineBreaksOf(string shaped)
         {
-            if (shaped.IndexOf('\n') >= 0) { return null; }   // author's own breaks win
-
             TMP_TextInfo info;
 
             // GetTextInfo measures by SETTING the label's text and generating

@@ -5,6 +5,20 @@ All notable changes to **Unity DirectTMP** are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.5]
+
+### Fixed
+- **The per-line reordering added in 2.1.4 was skipped for any text containing
+  a line break the author typed** — so a message with a blank line in it fell
+  straight back to the whole-paragraph reordering that 2.1.4 exists to replace,
+  and came out with its lines in the wrong order exactly as before.
+
+  The guard was `if the text has a newline, leave it alone`, written as though
+  the author's breaks and TextMeshPro's wrapping were alternatives. They are
+  not: a typed newline is a **paragraph boundary**, and each paragraph then
+  wraps on its own. The text is now split on typed newlines first, and every
+  paragraph gets measured and reordered a line at a time.
+
 ## [2.1.4]
 
 ### Fixed
