@@ -15,8 +15,9 @@ do was broken, and that is the mistake this codebase is now organised against.
 | `Runtime/DirectBidi.cs` | Reordering for display. Runs **after** shaping, never before. |
 | `Runtime/DirectFont.cs` | `.ttf`/`.otf` → dynamic `TMP_FontAsset`, cached. |
 | `Runtime/DirectTMP.cs` | The public API. |
-| `Runtime/DirectTMPDriver.cs` | Keeps every label pointed at the font, via `ITextPreprocessor`. |
-| `Editor/` | One window and one bootstrap. That is the whole editor surface. |
+| `Runtime/DirectTMPFont.cs` | The `Direct Font` component. Picks the font for the text's script, instances the material, and is itself the label's `ITextPreprocessor`. |
+| `Runtime/DirectScript.cs` | Which writing system some text is in. Pure C#. |
+| `Editor/` | One custom Inspector and three menu items. That is the whole editor surface. |
 
 ## The two rules that matter
 

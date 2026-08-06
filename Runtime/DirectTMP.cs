@@ -1,110 +1,31 @@
 // ==========================================
 // DirectTMP
-// The public API, and the thing that keeps every label
-// pointed at your font.
+// The public API.
 //
-// Two mechanisms, on purpose:
-//
-//   * Every loaded label has its font replaced, so the
-//     text is drawn in YOUR font.
-//   * The font is registered in TextMeshPro's own
-//     project-wide fallback list, so any label anywhere -
-//     including ones instantiated in the tenth minute of
-//     play, and ones inside packages you did not write -
-//     resolves characters its own font lacks out of
-//     yours.
-//
-// Nothing is added to any GameObject, nothing is written
-// into a scene, and no prefab is touched.
+// There is no project-wide setting and no global state.
+// A label is drawn from a font file because it has a
+// Direct Font component on it, or because your code
+// called one of these methods. Nothing happens to a
+// label nobody asked about.
 // ==========================================
-using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 
 namespace UnityDirectTMP
 {
-    /// <summary>
-    /// Everything this package does, in one place.
-    /// </summary>
+    /// <summary>Everything this package can be asked to do, in one place.</summary>
     public static class DirectTMP
     {
-        private static TMP_FontAsset s_font;
-        private static bool s_fixRightToLeft = true;
-
-        /// <summary>The font asset every label is being drawn with, or null.</summary>
-        public static TMP_FontAsset FontAsset => s_font;
-
-        /// <summary>True once a font has been applied.</summary>
-        public static bool Active => s_font != null;
-
-        // ==========================================
-        // Starting up
-        // ==========================================
-        /// <summary>
-        /// Reads the project settings and applies them. Called automatically
-        /// before the first scene loads, and again by the Editor whenever the
-        /// settings change.
-        /// </summary>
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-        public static void Initialize()
-        {
-            DirectTMPSettings settings = DirectTMPSettings.Instance;
-            if (settings == null || settings.Font == null) { return; }
-
-            s_fixRightToLeft = settings.FixRightToLeft;
-            Use(settings.Font);
-        }
-
-        /// <summary>
-        /// Draws every TextMeshPro label in the project with
-        /// <paramref name="font"/>. Returns the number of labels changed.
-        /// </summary>
-        public static int Use(Font font)
-        {
-            TMP_FontAsset asset = DirectFont.Load(font);
-            if (asset == null) { return 0; }
-
-            return Use(asset);
-        }
-
-        /// <summary>The same, for a font asset already built.</summary>
-        public static int Use(TMP_FontAsset asset)
-        {
-            if (asset == null) { return 0; }
-
-            s_font = asset;
-            RegisterFallback(asset);
-            DirectTMPDriver.Ensure();
-
-            return ApplyToAll();
-        }
-
-        /// <summary>Stops overriding. Labels keep whatever font they now have.</summary>
-        public static void Stop()
-        {
-            UnregisterFallback(s_font);
-            s_font = null;
-            DirectTMPDriver.Stop();
-        }
-
-        /// <summary>Whether Arabic-script text is joined and reordered.</summary>
-        public static bool FixRightToLeft
-        {
-            get => s_fixRightToLeft;
-            set => s_fixRightToLeft = value;
-        }
-
         // ==========================================
         // Text
         // ==========================================
         /// <summary>
         /// Joins Arabic-script letters and puts right-to-left text in reading
-        /// order, for the current font. Text with no Arabic script in it comes
-        /// back untouched.
+        /// order, using <paramref name="asset"/> to find the joined shapes.
+        /// Text with no Arabic script in it comes back untouched.
+        ///
+        /// Rich-text tags are never shaped or reordered.
         /// </summary>
-        public static string Prepare(string text) => Prepare(text, s_font);
-
-        /// <summary>The same, against a font asset of your choosing.</summary>
         public static string Prepare(string text, TMP_FontAsset asset)
         {
             if (string.IsNullOrEmpty(text)) { return text; }
@@ -122,69 +43,59 @@ namespace UnityDirectTMP
             });
         }
 
+        /// <summary>
+        /// The same, with no font behind it - every letter becomes its Unicode
+        /// presentation form. For text going somewhere that is not a
+        /// TextMeshPro label.
+        /// </summary>
+        public static string Prepare(string text) => Prepare(text, null);
+
         // ==========================================
         // Labels
         // ==========================================
         /// <summary>
-        /// Points every TextMeshPro label currently loaded at the font.
-        /// Returns how many were changed.
+        /// Draws one label from a font file, from code - the same thing the
+        /// Direct Font component does. Returns false if the font could not be
+        /// built; the Console says why.
         /// </summary>
-        public static int ApplyToAll()
+        public static bool Apply(TMP_Text label, Font file)
         {
-            if (s_font == null) { return 0; }
+            if (label == null || file == null) { return false; }
 
-            int changed = 0;
-            foreach (TMP_Text label in AllLabels())
-            {
-                if (Apply(label)) { changed++; }
-            }
-            return changed;
+            DirectTMPFont direct = label.GetComponent<DirectTMPFont>();
+            if (direct == null) { direct = label.gameObject.AddComponent<DirectTMPFont>(); }
+
+            direct.Font = file;
+            return direct.FontAsset != null;
         }
 
-        /// <summary>Points one label at the font. Returns true if anything changed.</summary>
-        public static bool Apply(TMP_Text label)
-        {
-            if (label == null || s_font == null) { return false; }
-            if (label.font == s_font) { return false; }
+        /// <summary>
+        /// A dynamic font asset for a font file, cached. Assign it to
+        /// <c>label.font</c> yourself if you would rather not have a component.
+        /// </summary>
+        public static TMP_FontAsset Load(Font file) => DirectFont.Load(file);
 
-            label.font = s_font;
-            return true;
+        /// <summary>The same, for a .ttf/.otf on disk rather than an imported font.</summary>
+        public static TMP_FontAsset LoadFromFile(string path) => DirectFont.LoadFromFile(path);
+
+        /// <summary>The same, for font bytes already in memory.</summary>
+        public static TMP_FontAsset LoadFromBytes(byte[] bytes, string name = null)
+            => DirectFont.LoadFromBytes(bytes, name);
+
+        /// <summary>
+        /// Rasterizes characters up front, so the first frame that shows them
+        /// does not pay for all of them at once. Returns the characters the
+        /// font could not supply.
+        /// </summary>
+        public static string Preload(TMP_FontAsset asset, string characters)
+        {
+            if (asset == null || string.IsNullOrEmpty(characters)) { return characters; }
+
+            asset.TryAddCharacters(characters, out string missing);
+            return missing;
         }
 
-        /// <summary>Every TextMeshPro label loaded right now, active or not.</summary>
-        public static IEnumerable<TMP_Text> AllLabels()
-        {
-#if UNITY_2023_1_OR_NEWER
-            return Object.FindObjectsByType<TMP_Text>(FindObjectsInactive.Include, FindObjectsSortMode.None);
-#else
-            return Object.FindObjectsOfType<TMP_Text>(true);
-#endif
-        }
-
-        // ==========================================
-        // TextMeshPro's own fallback list
-        //
-        // The safety net under everything else: a label
-        // this package never saw still resolves the
-        // characters its own font lacks out of yours.
-        // ==========================================
-        private static void RegisterFallback(TMP_FontAsset asset)
-        {
-            try
-            {
-                List<TMP_FontAsset> fallbacks = TMP_Settings.fallbackFontAssets;
-                if (fallbacks == null || fallbacks.Contains(asset)) { return; }
-                fallbacks.Insert(0, asset);
-            }
-            catch { /* TMP Essential Resources not imported yet; the override still works */ }
-        }
-
-        private static void UnregisterFallback(TMP_FontAsset asset)
-        {
-            if (asset == null) { return; }
-
-            try { TMP_Settings.fallbackFontAssets?.Remove(asset); }
-            catch { /* nothing to undo */ }
-        }
+        /// <summary>Drops every cached font asset. Anything still using one keeps working.</summary>
+        public static int ClearCache() => DirectFont.ClearCache();
     }
 }

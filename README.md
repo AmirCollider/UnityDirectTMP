@@ -25,25 +25,72 @@
 <a id="english"></a>
 ## 🖋️ How to use it
 
-1. **Window ▸ Unity DirectTMP**
-2. Pick a `.ttf` or `.otf`.
+1. Select your TextMeshPro label.
+2. **Add Component ▸ Unity DirectTMP ▸ Direct Font**
+   (or **Tools ▸ Unity DirectTMP ▸ Add Direct Font to Selection**).
+3. Drop a `.ttf` or `.otf` into **Font**.
 
-That's it. Every TextMeshPro label in the project is now drawn from that file —
-in the Editor, in Play mode and in the build. Glyphs are rasterized the first
-time they are drawn, so there is no character set to choose in advance and no
-atlas to rebuild.
+That label is now drawn from that file. Glyphs are rasterized the first time
+they are drawn, so there is no character set to choose and no atlas to rebuild.
 
-There is one checkbox: **Join Persian / Arabic and read right-to-left**. Leave
-it on; text with no Arabic script in it is returned untouched.
+One component, one label, one font. Nothing is applied project-wide, and two
+labels with two different fonts do not know about each other.
 
 From code, if you prefer:
 
 ```csharp
-DirectTMP.Use(myFont);                    // an imported Font
-DirectTMP.Use(DirectFont.LoadFromFile(path));   // a .ttf on disk
+DirectTMP.Apply(label, myFont);                 // same thing the component does
+label.font = DirectTMP.Load(myFont);            // or just the font asset
+label.font = DirectTMP.LoadFromFile(path);      // a .ttf on disk, at runtime
 ```
 
-**Nothing is added to your GameObjects, and no scene is modified.**
+### The fields
+
+| Field | What it does |
+|---|---|
+| **Font** | The font file. This is the only one you need. |
+| **Persian / Arabic** | Used when the text is mostly Persian, Arabic or Urdu. Empty = use **Font**. |
+| **日本語 / 中文 / 한국어** | Used when the text is mostly Japanese, Chinese or Korean. Empty = use **Font**. |
+| **English / Latin** | Used when the text is mostly English or another Latin language. Empty = use **Font**. |
+| **Own material** | Give this label its own material, so an outline on it does not change every other label using the same font. |
+| **Join Persian / Arabic** | Joining and reading order. Costs nothing for text with no Arabic script in it. |
+
+---
+
+## 🌏 A font per language, on one label
+
+A label that shows Persian today and Japanese tomorrow — a player name, a chat
+line, a localized string — wants a different font in each case, and no single
+font is good at both.
+
+Fill in the language fields you have fonts for and leave the rest empty. Each
+time the text changes, the writing system it is actually in is worked out and
+the matching font is used.
+
+It counts characters rather than looking at the first letter, so
+`"Unity ۱۲۳ سلام دنیا"` is Persian, not English. Digits, spaces and punctuation
+do not vote.
+
+Whatever you assign also goes into the chosen font's fallback list, so a
+Persian line with an English word in it still finds the English glyphs even
+though only one font can be the label's own.
+
+---
+
+## 🎨 The outline that changed every label
+
+Every TextMeshPro label using the same font asset shares **one** material. So an
+outline, a face dilate or a glow set on one label is set on **every** label using
+that font.
+
+That is not a bug in TextMeshPro and it is not a bug in this package — it is what
+"shared material" means. But it surprises everybody, and it surprises people
+harder when a tool has just pointed forty labels at the same font.
+
+**Own material** gives the label a material of its own, so its outline stays its
+own. It is on by default, because a surprise that costs one draw call is better
+than a surprise that changes every label in the scene. Turn it off on labels
+that are meant to share a look and the batching comes back.
 
 ---
 
@@ -114,7 +161,7 @@ configure. If the font has the glyph, the label draws it.
 - Unity **2021.3** or newer
 - **TextMeshPro** (bundled with Unity)
 
-If a font produces nothing, the window names the reason. The four usual causes
+If a font produces nothing, the component's Inspector names the reason. The four usual causes
 are all project-level and none is visible from a scene: TMP Essential Resources
 not imported, **Include Font Data** off on the font importer, the importer's
 **Character** mode not set to Dynamic, or a missing distance-field shader.
@@ -136,46 +183,62 @@ https://github.com/AmirCollider/UnityDirectTMP.git
 
 ### چطور کار می‌کند
 
-1. **Window ▸ Unity DirectTMP**
-2. یک فایل `.ttf` یا `.otf` انتخاب کنید.
+۱. لیبل TextMeshPro را انتخاب کنید.
+۲. **Add Component ▸ Unity DirectTMP ▸ Direct Font**
+۳. یک فایل `.ttf` یا `.otf` داخل فیلد **Font** بگذارید.
 
-تمام. از این به بعد همه‌ی لیبل‌های TextMeshPro در پروژه با همان فایل کشیده
-می‌شوند — در ادیتور، در Play mode و در بیلد. هیچ Font Asset ای ساخته نمی‌شود و
-لازم نیست از قبل مشخص کنید کدام کاراکترها را می‌خواهید.
+همان لیبل از همان فایل کشیده می‌شود. هیچ Font Asset ای ساخته نمی‌شود و لازم
+نیست از قبل مشخص کنید کدام کاراکترها را می‌خواهید.
 
-فقط یک تیک دارد: **جوین شدن فارسی/عربی و راست‌به‌چپ**. روشن بگذارید؛ متنی که
-حروف عربی ندارد اصلاً دست نمی‌خورد.
+یک کامپوننت، یک لیبل، یک فونت. هیچ چیزی روی کل پروژه اعمال نمی‌شود و دو لیبل با
+دو فونت مختلف کاری به هم ندارند.
 
-**هیچ کامپوننتی به هیچ GameObject ای اضافه نمی‌شود و هیچ صحنه‌ای تغییر
-نمی‌کند.**
+### فیلدها
+
+| فیلد | کارش چیست |
+|---|---|
+| **Font** | فایل فونت. تنها فیلدی که واقعاً لازم دارید. |
+| **Persian / Arabic** | وقتی متن بیشتر فارسی، عربی یا اردو باشد. خالی = همان **Font**. |
+| **日本語 / 中文 / 한국어** | وقتی متن بیشتر ژاپنی، چینی یا کره‌ای باشد. خالی = همان **Font**. |
+| **English / Latin** | وقتی متن بیشتر انگلیسی باشد. خالی = همان **Font**. |
+| **Own material** | متریال مخصوص همین لیبل، تا OutLine روی بقیه‌ی لیبل‌ها اثر نگذارد. |
+| **Join Persian / Arabic** | چسبیدن حروف و ترتیب راست‌به‌چپ. |
+
+### یک فونت برای هر زبان، روی یک لیبل
+
+فیلدهای زبان‌هایی را که فونت دارید پر کنید و بقیه را خالی بگذارید. هر بار که
+متن عوض می‌شود، تشخیص داده می‌شود متن در چه خطی نوشته شده و فونت مربوطه استفاده
+می‌شود.
+
+تشخیص با شمردن کاراکترها انجام می‌شود نه با نگاه به حرف اول، پس
+`"Unity ۱۲۳ سلام دنیا"` فارسی حساب می‌شود نه انگلیسی. عدد و فاصله و علائم رأی
+نمی‌دهند.
+
+### باگ OutLine
+
+در TextMeshPro همه‌ی لیبل‌هایی که از یک Font Asset استفاده می‌کنند **یک**
+متریال مشترک دارند. برای همین وقتی به یک متن OutLine می‌دهید، روی همه‌ی
+متن‌هایی که همان فونت را دارند اعمال می‌شود.
+
+این باگ TextMeshPro یا این پکیج نیست — معنیِ «متریال مشترک» همین است. اما همه را
+غافلگیر می‌کند.
+
+تیک **Own material** به این لیبل یک متریال مخصوص خودش می‌دهد تا OutLine اش مال
+خودش بماند. به‌صورت پیش‌فرض روشن است. اگر چند لیبل قرار است ظاهر یکسان داشته
+باشند خاموشش کنید تا batching برگردد.
 
 ### چرا قبلاً بعضی کلمات درست بود و بیشترشان نه
 
-این یک باگ واقعی بود و حالا درست شده.
-
 کلماتی که فقط از حروفِ «نچسبِ از چپ» ساخته شده‌اند — درد، راز، زود، دارا، رود —
-چه شکل‌دهی بشوند چه نشوند، یکسان دیده می‌شوند. همان‌ها کار می‌کردند. بقیه
-خراب بودند.
+چه شکل‌دهی بشوند چه نشوند، یکسان دیده می‌شوند. همان‌ها کار می‌کردند.
 
-دلیلش: نسخه‌ی قبلی حروف را به **فرم‌های نمایشی یونیکد** تبدیل می‌کرد
-(بلوک‌های `U+FE70..FEFF` و `U+FB50..FBFF`) و بعد از فونت می‌پرسید آیا آن‌ها را
-دارد یا نه. فونت‌های مدرن فارسی — وزیرمتن، ساحل، شبنم، ایران‌سنس، نوتو —
-این بلوک‌ها را **ندارند**. آن‌ها حروف ساده را دارند و قواعد چسبیدن را در جدول
-`GSUB` نگه می‌دارند.
+نسخه‌ی قبلی حروف را به **فرم‌های نمایشی یونیکد** تبدیل می‌کرد و بعد از فونت
+می‌پرسید آیا آن‌ها را دارد. فونت‌های مدرن فارسی — وزیرمتن، ساحل، شبنم،
+ایران‌سنس، نوتو — ندارند؛ آن‌ها قواعد چسبیدن را در جدول `GSUB` نگه می‌دارند. پس
+جواب «نه» می‌شد و کل کلمه بدون جوین رها می‌شد.
 
-پس جواب فونت «نه» بود و کل کلمه بدون جوین رها می‌شد.
-
-اما آن شکل‌ها هیچ‌وقت گم نشده بودند. هر فونتی که عربی دارد، «پ» ابتدایی هم
-دارد — کارِ ویژگی `init` دقیقاً همین است. فقط **کدپوینت‌ها** غایب بودند. حالا
-Unity DirectTMP جدول `GSUB` خود فونت را می‌خواند، می‌پرسد برای هر حرف در هر
-موقعیت کدام گلیف را می‌کشد، و همان گلیف را داخل Font Asset ثبت می‌کند.
-
-### چطور تست شده
-
-خروجی شکل‌دهی **گلیف‌به‌گلیف با HarfBuzz** مقایسه شده — همان موتوری که در
-کروم، فایرفاکس، اندروید و مک‌اواس کار می‌کند — روی مجموعه‌ای از کلمات فارسی،
-عربی و اردو و روی پنج فونت، از جمله فونتی که عمداً هیچ فرم نمایشی‌ای ندارد.
-همه‌ی کلمات یکسان درآمدند.
+حالا جدول `GSUB` خود فونت خوانده می‌شود و همان گلیفی که خود فونت می‌کشد داخل
+Font Asset ثبت می‌شود. خروجی **گلیف‌به‌گلیف با HarfBuzz** روی پنج فونت تست شده.
 
 ---
 

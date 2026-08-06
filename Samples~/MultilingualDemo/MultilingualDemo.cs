@@ -7,6 +7,10 @@
 // you want and press Play. There is no font asset to
 // build and no character set to choose - each glyph is
 // rasterized the first time it is drawn.
+//
+// Each label gets its own Direct Font component, which
+// is all DirectTMP.Apply does. Nothing is applied
+// project-wide.
 // ==========================================
 using TMPro;
 using UnityEngine;
@@ -19,8 +23,6 @@ namespace UnityDirectTMP.Samples
         [Tooltip("Any .ttf or .otf imported into the project.")]
         [SerializeField] private Font font;
 
-        [Tooltip("Join Persian/Arabic and put right-to-left text in reading order.")]
-        [SerializeField] private bool fixRightToLeft = true;
 
         private static readonly string[] Lines =
         {
@@ -41,12 +43,6 @@ namespace UnityDirectTMP.Samples
                 return;
             }
 
-            DirectTMP.FixRightToLeft = fixRightToLeft;
-
-            // One call. Every TextMeshPro label in the project is now drawn
-            // from this file, and so is every label made after it.
-            DirectTMP.Use(font);
-
             Build();
         }
 
@@ -63,6 +59,11 @@ namespace UnityDirectTMP.Samples
                 labelObject.transform.SetParent(canvasObject.transform, false);
 
                 TextMeshProUGUI label = labelObject.AddComponent<TextMeshProUGUI>();
+
+                // The one line that matters: this label is now drawn from the
+                // font file, and its Persian and Arabic are joined.
+                DirectTMP.Apply(label, font);
+
                 label.text = Lines[i];
                 label.fontSize = 32;
                 label.alignment = TextAlignmentOptions.Center;

@@ -5,6 +5,45 @@ All notable changes to **Unity DirectTMP** are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0]
+
+2.0.0 fixed the shaping but replaced the per-label component with one
+project-wide setting. That was the wrong shape for anybody who uses more than
+one font, so the component is back — with the three things it was missing.
+
+### Added
+- **`Direct Font` component.** Put it on a TextMeshPro label, give it a `.ttf`,
+  done. One component, one label, one font; two labels with two fonts do not
+  know about each other. Add Component ▸ **Unity DirectTMP ▸ Direct Font**, or
+  **Tools ▸ Unity DirectTMP ▸ Add Direct Font to Selection**.
+
+- **A font per language, on the same label.** Optional `Persian / Arabic`,
+  `日本語 / 中文 / 한국어` and `English / Latin` fields. The script the text is
+  actually in is worked out each time the text changes — by counting
+  characters, so `"Unity ۱۲۳ سلام دنیا"` is Persian, not English — and the
+  matching font is used. Fonts left empty fall back to `Font`. Whatever is
+  assigned also goes into the chosen font's fallback list, so a Persian line
+  with an English word in it still finds the English glyphs.
+
+- **`Own material`.** Every TextMeshPro label using the same font asset shares
+  **one** material, so an outline, dilate or glow set on one label is set on
+  every label using that font. That is what shared materials are, not a bug in
+  anything — but it surprises everybody. This gives the label a material of its
+  own, through TextMeshPro's own `fontMaterial` instancing. On by default; turn
+  it off on labels that share a look to get the batching back.
+
+### Fixed
+- **The menu did not appear.** It was registered under `Window/`, not on the
+  top bar. It is now **Tools ▸ Unity DirectTMP**.
+
+### Removed
+- The project-wide font setting, its window, its bootstrap, its driver and
+  `Assets/Resources/DirectTMPSettings.asset`. Fonts are chosen per label now.
+
+### Changed
+- `DirectTMP` is a plain API with no global state: `Prepare`, `Apply`, `Load`,
+  `LoadFromFile`, `LoadFromBytes`, `Preload`, `ClearCache`.
+
 ## [2.0.0]
 
 A rewrite. The package did one thing badly and eleven things nobody asked
