@@ -40,8 +40,9 @@ REQUIRED = [
     "Runtime/DirectBidi.cs",
     "Runtime/DirectFont.cs",
     "Runtime/DirectTMP.cs",
-    "Editor/DirectTMPFontInspector.cs",
-    "Runtime/DirectTMPFont.cs",
+    "Editor/DirectFontInspector.cs",
+    "Editor/DirectTMPMenu.cs",
+    "Runtime/DirectFontLibrary.cs",
     "Runtime/DirectScript.cs",
 ]
 for path in REQUIRED:
@@ -102,6 +103,30 @@ for name in sorted(os.listdir("Runtime")):
         elif "UnityEditor" in stripped and depth == 0 and not stripped.startswith("//"):
             guarded = False
     check(guarded, f"Runtime/{name} uses UnityEditor outside a UNITY_EDITOR guard")
+
+# ------------------------------------------------- MonoBehaviour file names
+# Unity binds a component in a scene to a script FILE, by GUID, and then
+# expects the class inside to still derive from MonoBehaviour. Repurposing
+# such a file for something else - a static helper, say - leaves every scene
+# that used the component reporting
+#     'X' is missing the class attribute 'ExtensionOfNativeClass'
+# once per instance, and the component is unrecoverable. The class must also
+# be named after the file, or Unity cannot find it at all.
+for folder in ("Runtime", "Editor"):
+    for name in sorted(os.listdir(folder)):
+        if not name.endswith(".cs"):
+            continue
+        source = read(os.path.join(folder, name))
+        stem = name[:-3]
+
+        declared = re.findall(
+            r"\bclass\s+(\w+)\s*:\s*([^\n{]*)", source)
+        for cls, bases in declared:
+            unity_type = "MonoBehaviour" in bases or "ScriptableObject" in bases
+            if unity_type and cls != stem:
+                FAILURES.append(
+                    f"{folder}/{name}: class {cls} derives from a Unity type but the "
+                    f"file is named {stem}.cs - Unity will not bind it")
 
 # ---------------------------------------------------------------- package.json
 package = json.loads(read("package.json"))
