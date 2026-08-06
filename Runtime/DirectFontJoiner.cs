@@ -61,6 +61,7 @@ using System.Reflection;
 using TMPro;
 using UnityEngine;
 using UnityEngine.TextCore;
+using UnityEngine.TextCore.LowLevel;
 
 namespace UnityDirectTMP
 {
@@ -133,7 +134,24 @@ namespace UnityDirectTMP
         /// it is emitted.
         /// </summary>
         public string Shape(string text)
-            => DirectShaper.Shape(text, Resolve, ResolveLigature, null);
+        {
+            string shaped = DirectShaper.Shape(text, Resolve, ResolveLigature, null);
+
+            // TextMeshPro rebuilds its lookup dictionaries from the character
+            // table, and anything that touches the asset can trigger that. The
+            // characters added above have to survive the rebuild, so the asset
+            // is told about them once per shaping pass rather than once per
+            // glyph.
+            if (_dirty)
+            {
+                _dirty = false;
+                try { _asset.ReadFontAssetDefinition(); } catch { /* not fatal */ }
+            }
+
+            return shaped;
+        }
+
+        private bool _dirty;
 
         // ==========================================
         // Resolve
@@ -339,12 +357,57 @@ namespace UnityDirectTMP
                 var character = new TMP_Character(codepoint, glyph) { textAsset = _asset };
                 _asset.characterTable.Add(character);
                 _asset.characterLookupTable[codepoint] = character;
+                _dirty = true;
                 return true;
             }
             catch
             {
                 return false;
             }
+        }
+
+        // ==========================================
+        // The FontEngine keeps ONE face open at a time,
+        // and whichever call last loaded one owns it.
+        //
+        // That matters more here than anywhere else in
+        // the package, because this is the only place
+        // that asks for a glyph by INDEX. An index means
+        // nothing without a face: ask for glyph 1,247
+        // while somebody else's font is loaded and you
+        // get their glyph 1,247, rasterized into our
+        // atlas, under our codepoint. The text then
+        // renders - as the wrong letters.
+        //
+        // A codepoint could not do this. A glyph index
+        // can, so the face is made current first, every
+        // time.
+        // ==========================================
+        private bool LoadFace()
+        {
+            int pointSize = (int)_asset.faceInfo.pointSize;
+            if (pointSize <= 0) { pointSize = DirectFontLibrary.SamplingPointSize; }
+
+            try
+            {
+                if (_asset.sourceFontFile != null
+                    && FontEngine.LoadFontFace(_asset.sourceFontFile, pointSize) == FontEngineError.Success)
+                {
+                    return true;
+                }
+
+                byte[] data = _bytes?.Invoke();
+                if (data != null && data.Length > 0
+                    && FontEngine.LoadFontFace(data, pointSize) == FontEngineError.Success)
+                {
+                    return true;
+                }
+            }
+            catch { /* fall through */ }
+
+            // Some TextMeshPro versions load the asset's own face inside
+            // TryAddGlyphInternal, so a failure here is not the end of it.
+            return false;
         }
 
         private Glyph AddGlyph(uint glyphIndex)
@@ -357,6 +420,8 @@ namespace UnityDirectTMP
             {
                 return existing;
             }
+
+            LoadFace();
 
             MethodInfo adder = GlyphAdder();
             if (adder == null)

@@ -82,6 +82,125 @@ namespace UnityDirectTMP.EditorTools
             Debug.Log($"[DirectTMP] Removed Direct Font from {removed} label(s).");
         }
 
+        // ==========================================
+        // Diagnose
+        //
+        // Every question worth asking about one label,
+        // answered in one Console message: what the text
+        // is, what it was shaped into, which font is
+        // drawing it, and - the one that matters -
+        // whether the font asset can actually draw every
+        // character the shaper emitted.
+        //
+        // A shaped codepoint with no character behind it
+        // is a box on screen, and no amount of looking at
+        // the Inspector will tell you which one it was.
+        // ==========================================
+        [MenuItem(Menu + "Diagnose Selected Label", false, 150)]
+        private static void Diagnose()
+        {
+            var report = new System.Text.StringBuilder();
+            int labels = 0;
+
+            foreach (GameObject root in Selection.gameObjects)
+            {
+                foreach (TMP_Text label in root.GetComponentsInChildren<TMP_Text>(true))
+                {
+                    labels++;
+                    Describe(label, report);
+                }
+            }
+
+            if (labels == 0)
+            {
+                Debug.LogWarning("[DirectTMP] Select a TextMeshPro label (or something above one) first.");
+                return;
+            }
+
+            Debug.Log("[DirectTMP] Diagnosis\n" + report);
+        }
+
+        private static void Describe(TMP_Text label, System.Text.StringBuilder report)
+        {
+            report.Append("\n── ").Append(label.name).Append(" ──\n");
+
+            var direct = label.GetComponent<DirectFont>();
+            report.Append("  Direct Font component : ").Append(direct == null ? "NO" : "yes").Append('\n');
+
+            string text = label.text ?? string.Empty;
+            report.Append("  text                  : ").Append(Show(text)).Append('\n');
+            report.Append("  writing systems       : ").Append(DirectScripts.Describe(text)).Append('\n');
+
+            TMP_FontAsset asset = label.font;
+            report.Append("  font asset            : ")
+                  .Append(asset == null ? "NONE" : asset.name).Append('\n');
+
+            if (asset == null)
+            {
+                report.Append("  → the label has no font asset at all.\n");
+                return;
+            }
+
+            report.Append("  atlas mode            : ").Append(asset.atlasPopulationMode).Append('\n');
+            report.Append("  preprocessor attached : ")
+                  .Append(label.textPreprocessor == null ? "NO" : label.textPreprocessor.GetType().Name)
+                  .Append('\n');
+
+            if (direct == null)
+            {
+                report.Append("  → no Direct Font on this label, so nothing shapes its text.\n");
+                return;
+            }
+
+            DirectFontJoiner joiner = DirectFontJoiner.For(asset);
+            string shaped = DirectTMP.Prepare(text, asset);
+
+            report.Append("  shaped                : ").Append(Show(shaped)).Append('\n');
+            report.Append("  joining rules read    : ").Append(joiner.HasJoiningRules ? "yes" : "NO").Append('\n');
+            if (!string.IsNullOrEmpty(joiner.Problem))
+            {
+                report.Append("  joining problem       : ").Append(joiner.Problem).Append('\n');
+            }
+
+            // The question that decides whether anything renders.
+            string missing = string.Empty;
+            for (int i = 0; i < shaped.Length; i++)
+            {
+                char c = shaped[i];
+                if (c == '\n' || c == '\r' || c == '\t') { continue; }
+                if (asset.HasCharacter(c, true, true)) { continue; }
+
+                missing += $" U+{(int)c:X4}";
+            }
+
+            report.Append("  characters missing    : ")
+                  .Append(missing.Length == 0 ? "none — every shape can be drawn" : missing)
+                  .Append('\n');
+
+            if (missing.Length > 0)
+            {
+                report.Append("  → those render as boxes. If they are U+FExx or U+FBxx the font's own\n")
+                      .Append("    GSUB could not be read; if U+Exxx the glyph could not be rasterized.\n");
+            }
+        }
+
+        // Text and codepoints together: Arabic in a Console message is
+        // reordered by the Console itself, so the shape of the string is only
+        // legible as numbers.
+        private static string Show(string text)
+        {
+            if (string.IsNullOrEmpty(text)) { return "(empty)"; }
+
+            var codes = new System.Text.StringBuilder();
+            for (int i = 0; i < text.Length && i < 24; i++)
+            {
+                codes.Append(' ').Append(((int)text[i]).ToString("X4"));
+            }
+            if (text.Length > 24) { codes.Append(" …"); }
+
+            return $"\"{text}\"   [{codes.ToString().Trim()}]";
+        }
+
         [MenuItem(Menu + "Clear Font Cache", false, 200)]
         private static void ClearCache()
             => Debug.Log($"[DirectTMP] Cleared {DirectTMP.ClearCache()} cached font asset(s).");

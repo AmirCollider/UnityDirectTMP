@@ -5,6 +5,40 @@ All notable changes to **Unity DirectTMP** are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.2]
+
+### Fixed
+- **The component attached itself and then changed nothing.** This is the one
+  that made text still come out wrong after everything else was right.
+
+  TextMeshPro calls a text preprocessor from `ParseInputText`, and it only
+  parses when `havePropertiesChanged` is set. The component was calling
+  `SetVerticesDirty`, which rebuilds the **mesh** from text that has already
+  been parsed. So a label whose text had been parsed before the preprocessor
+  arrived — which is every label in an already-open scene — kept its unjoined,
+  unreordered version and never asked again. Nothing about that looks like a
+  missing re-parse from the outside: the component is there, the font is right,
+  and the text is wrong.
+
+- **Glyphs could be rasterized out of the wrong font.** The font engine keeps
+  one face open at a time. Registering a joined shape asks for a glyph by
+  INDEX, and an index means nothing without a face — so if another font's face
+  happened to be current, that font's glyph number was rasterized into our
+  atlas under our codepoint, and the label rendered the wrong letters. The
+  face is now made current before every such request.
+
+- Characters added to a font asset are now followed by
+  `ReadFontAssetDefinition`, once per shaping pass, so they survive the lookup
+  rebuild that anything touching the asset can trigger.
+
+### Added
+- **Unity DirectTMP ▸ Diagnose Selected Label.** One Console message per
+  label: the text and its codepoints, the writing system, the font asset and
+  its atlas mode, whether the preprocessor is attached, what the text shaped
+  into, whether the font's joining rules could be read, and — the one that
+  decides whether anything renders — exactly which shaped codepoints the font
+  asset cannot draw.
+
 ## [2.1.1]
 
 ### Fixed

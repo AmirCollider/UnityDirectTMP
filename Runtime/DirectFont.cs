@@ -112,7 +112,7 @@ namespace UnityDirectTMP
             if (_label != null && ReferenceEquals(_label.textPreprocessor, this))
             {
                 _label.textPreprocessor = null;
-                _label.SetVerticesDirty();
+                Regenerate();
             }
         }
 
@@ -177,8 +177,7 @@ namespace UnityDirectTMP
             if (!ReferenceEquals(_label.textPreprocessor, this))
             {
                 _label.textPreprocessor = this;
-                _label.SetVerticesDirty();
-                _label.SetLayoutDirty();
+                Regenerate();
             }
 
             _sourceText = null;
@@ -285,11 +284,34 @@ namespace UnityDirectTMP
             _sourceText = text;
             _shapedText = DirectTMP.Prepare(text, _asset);
 
-            if (_shapedText != text)
-            {
-                _label.SetVerticesDirty();
-                _label.SetLayoutDirty();
-            }
+            if (_shapedText != text) { Regenerate(); }
+        }
+
+        // ==========================================
+        // Making TextMeshPro look at the text again.
+        //
+        // SetVerticesDirty is not enough, and thinking
+        // it was is why this package could attach its
+        // preprocessor to a label and change nothing at
+        // all.
+        //
+        // TextMeshPro only calls a preprocessor from
+        // ParseInputText, and it only parses when
+        // havePropertiesChanged is set. SetVerticesDirty
+        // rebuilds the MESH from text that has already
+        // been parsed - so a label whose text was parsed
+        // before the preprocessor arrived kept the
+        // unjoined, unreordered version forever, and
+        // nothing about that looks like a missing re-parse
+        // from the outside.
+        // ==========================================
+        private void Regenerate()
+        {
+            if (_label == null) { return; }
+
+            _label.havePropertiesChanged = true;
+            _label.SetVerticesDirty();
+            _label.SetLayoutDirty();
         }
 
         /// <summary>

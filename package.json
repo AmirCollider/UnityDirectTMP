@@ -1,6 +1,6 @@
 {
   "name": "com.amircollider.unitydirecttmp",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "displayName": "Unity DirectTMP",
   "description": "Add a Direct Font component to a TextMeshPro label, give it a .ttf, and that label is drawn from the file. No font asset to build, no character set to choose.\n\n• One component, one label, one font. Nothing is applied project-wide and nothing is stored in a settings asset — use a different font on every label if you want.\n• Persian, Arabic and Urdu that actually read — letters joined and in reading order. The joined shapes come from the font's OWN OpenType tables, so modern faces that carry no legacy presentation codepoints (Vazirmatn, Sahel, Shabnam, IRANSans, Noto Sans Arabic) join correctly. Verified glyph-for-glyph against HarfBuzz.\n• A font per language, on the same label. Fill in a Persian font, a CJK font and a Latin font; the script the text is actually in is detected each time it changes and the matching font is used.\n• No more outline bleed. TextMeshPro labels sharing a font share one material, so an outline on one is an outline on all. 'Own material' gives a label its own.\n• Japanese, Chinese, Korean, Cyrillic, Thai, Greek and symbols with no setup at all.\n• Rich-text tags are never shaped or reordered, and label.text is never written to.\n\nFree and MIT licensed. Requires TextMeshPro (bundled with Unity). No other dependencies.",
   "unity": "2021.3",
