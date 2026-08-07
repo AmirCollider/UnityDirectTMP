@@ -44,6 +44,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `DirectFontBytes.For(Font)` — the runtime lookup, for anything building font
   assets of its own.
 
+- **A `link.xml`**, because carrying the bytes was only half of it. Registering
+  a joined shape needs `TMP_FontAsset.TryAddGlyphInternal`, which is internal
+  and reached by reflection — so nothing in the compiled code refers to it and
+  managed stripping is free to remove it. When it goes, every Arabic shape
+  falls back to the legacy presentation block again, in a player build only,
+  with no error anywhere. `TMP_FontAsset` and the TextCore font engine are now
+  preserved.
+- `DirectFontJoiner.CanRasterizeByGlyphIndex`, so that question can be asked
+  rather than guessed at.
+- **`DirectFontReport`** — the diagnostic, on the device. Drop it on any
+  GameObject and it draws, over the game and into the log, whether the font
+  asset was built, whether the bytes were found, whether the glyph adder
+  survived stripping, whether the joining rules were read, and where each
+  shaped codepoint's glyph came from — `gsub`, `cmap` or nowhere. It ends with
+  one line saying which of those is the problem.
+
+  It is IMGUI on purpose: no canvas, no font asset and no setup, because those
+  are the three things that might be what is broken.
+
 ### Notes
 - `DirectFontSource.BytesFor` now falls through to the baked table for a font
   asset it did not build, so a `TMP_FontAsset` somebody else made joins on

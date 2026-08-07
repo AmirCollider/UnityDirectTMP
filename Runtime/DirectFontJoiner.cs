@@ -480,6 +480,19 @@ namespace UnityDirectTMP
             return added ? args[1] as Glyph : null;
         }
 
+        /// <summary>
+        /// Whether this build can still rasterize a glyph by INDEX, which is what registering the
+        /// font's own joined shapes needs.
+        /// <para>
+        /// It is a question worth being able to ask, because the answer can be different in a
+        /// player build than in the Editor: <c>TryAddGlyphInternal</c> is internal and reached by
+        /// reflection, so nothing in the compiled code refers to it and managed stripping is free
+        /// to take it away. When it goes, every joined shape falls back to the legacy presentation
+        /// block - on device only, and silently.
+        /// </para>
+        /// </summary>
+        public static bool CanRasterizeByGlyphIndex => GlyphAdder() != null;
+
         private static MethodInfo s_glyphAdder;
         private static bool s_glyphAdderResolved;
 

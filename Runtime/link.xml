@@ -1,0 +1,18 @@
+<!--
+  Registering a joined shape needs TMP_FontAsset.TryAddGlyphInternal, which is
+  internal and reached by reflection. Nothing in the compiled code refers to it,
+  so managed stripping is free to remove it — and when it does, every Arabic
+  shape falls back to the legacy presentation block, in a player build only,
+  with no error anywhere.
+
+  FontEngine is here for the same reason: the face has to be made current before
+  a glyph is asked for by index, and a glyph index means nothing without it.
+-->
+<linker>
+  <assembly fullname="Unity.TextMeshPro" ignoreIfMissing="1">
+    <type fullname="TMPro.TMP_FontAsset" preserve="all" />
+  </assembly>
+
+  <assembly fullname="UnityEngine.TextCoreFontEngineModule" preserve="all" ignoreIfMissing="1" />
+  <assembly fullname="UnityEngine.TextCoreTextEngineModule" preserve="all" ignoreIfMissing="1" />
+</linker>
