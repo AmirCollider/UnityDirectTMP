@@ -5,6 +5,34 @@ All notable changes to **Unity DirectTMP** are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.8]
+
+### Fixed
+- **A player build could end up with no font asset at all**, which is worse
+  than the unjoined text 2.1.7 went after — and was hiding behind it.
+
+  `TMP_FontAsset.CreateFontAsset(Font, …)` returns null whenever the importer
+  kept the font's *name* instead of its outlines: "Include Font Data" off, or a
+  Character mode that bakes a fixed bitmap. There has always been a rescue for
+  that — read the `.ttf` off disk and build from the bytes — but the only route
+  to the file was `AssetDatabase`, so **the rescue existed in the Editor and
+  nowhere else**.
+
+  In the Editor the font was rescued and the text was perfect. In a build
+  `Load` returned null, `DirectFont.Apply` gave up before attaching its
+  preprocessor, and the label was left on whatever font asset the scene
+  happened to serialize — no shaping, no reordering, no font of ours. The
+  symptom is the same shape as 2.1.7's, which is why one looked like the other.
+
+  The rescue now falls through to the bytes baked in 2.1.7, so a build recovers
+  exactly the way the Editor always has.
+
+- `DirectFontReport` asked what the build was carrying *after* reporting the
+  font asset, so the one case that most needed those lines — no font asset —
+  was the one case that stopped before printing them. They come first now, and
+  the no-asset path has a verdict of its own that distinguishes "the bytes are
+  missing too" from "the bytes are here, the package is too old to use them".
+
 ## [2.1.7]
 
 ### Fixed

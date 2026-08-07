@@ -83,34 +83,55 @@ namespace UnityDirectTMP
             Font file = on.Font;
             said.AppendLine($"font          : {(file == null ? "NONE — the component has no font, so it does nothing" : file.name)}");
 
+            // ---- what the build was given, asked FIRST ----
+            //
+            // These used to be reported after the font asset, which meant a
+            // project whose font asset never got built - the worst case there
+            // is - saw none of them. The one report that had to say what the
+            // build was carrying was the one that stopped before saying it.
+
+            byte[] baked = DirectFontBytes.For(file);
+
+            said.AppendLine(DirectFontBytes.Table == null
+                ? "baked table   : MISSING — run 'Bake Fonts For Build', or build again"
+                : $"baked table   : present, {DirectFontBytes.Table.Rows.Length} font(s)");
+
+            said.AppendLine(baked == null || baked.Length == 0
+                ? "baked bytes   : NOT FOUND for this font"
+                : $"baked bytes   : found, {baked.Length:N0} bytes");
+
+            said.AppendLine(DirectFontJoiner.CanRasterizeByGlyphIndex
+                ? "glyph adder   : available"
+                : "glyph adder   : STRIPPED — TryAddGlyphInternal was removed from this build");
+
             TMP_FontAsset asset = on.FontAsset;
             said.AppendLine($"font asset    : {(asset == null ? "NOT BUILT" : asset.name)}");
 
             if (asset == null)
             {
                 said.AppendLine();
-                said.AppendLine("No font asset means TextMeshPro could not rasterize this font at all.");
-                said.AppendLine("Nearly always \"Include Font Data\" being off on the font's importer.");
+                said.AppendLine("No font asset means TextMeshPro could not rasterize this font at all,");
+                said.AppendLine("so nothing of this package is running on this label — it is left on");
+                said.AppendLine("whatever asset the scene serialized, unshaped.");
+                said.AppendLine();
+
+                said.AppendLine(baked == null || baked.Length == 0
+                    ? "VERDICT: the importer kept the font's NAME instead of its outlines, and there\n"
+                      + "are no baked bytes to fall back on. Turn ON \"Include Font Data\" on the\n"
+                      + "font, run 'Unity DirectTMP ▸ Bake Fonts For Build', and build again."
+                    : "VERDICT: the bytes ARE in this build, so a version with the build-side rescue\n"
+                      + "(2.1.8 or newer) would have recovered. Update the package.");
+
                 return said.ToString();
             }
 
             said.AppendLine($"characters    : {asset.characterTable.Count}");
-
-            // ---- the two things that differ between the Editor and a build ----
 
             byte[] bytes = DirectFontSource.BytesFor(asset);
 
             said.AppendLine(bytes == null || bytes.Length == 0
                 ? "font bytes    : NOT FOUND  ← the font's own joining rules cannot be read"
                 : $"font bytes    : found, {bytes.Length:N0} bytes");
-
-            said.AppendLine(DirectFontBytes.Table == null
-                ? "baked table   : MISSING — run 'Bake Fonts For Build', or build again"
-                : $"baked table   : present, {DirectFontBytes.Table.Rows.Length} font(s)");
-
-            said.AppendLine(DirectFontJoiner.CanRasterizeByGlyphIndex
-                ? "glyph adder   : available"
-                : "glyph adder   : STRIPPED — TryAddGlyphInternal was removed from this build");
 
             DirectFontJoiner joiner = DirectFontJoiner.For(asset);
 
@@ -210,11 +231,16 @@ namespace UnityDirectTMP
 
         private static DirectFont FindFirst()
         {
+            // Both spellings are deprecated in one Unity version or another and
+            // the package supports 2021.3 upward, so the warning is silenced
+            // rather than the call being made twice.
+#pragma warning disable 618
 #if UNITY_2022_2_OR_NEWER
             DirectFont[] all = FindObjectsByType<DirectFont>(FindObjectsInactive.Include, FindObjectsSortMode.None);
 #else
             DirectFont[] all = FindObjectsOfType<DirectFont>(true);
 #endif
+#pragma warning restore 618
             foreach (DirectFont one in all)
             {
                 if (one != null && one.Font != null) { return one; }

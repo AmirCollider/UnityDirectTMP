@@ -143,16 +143,51 @@ namespace UnityDirectTMP
 
             if (asset == null)
             {
-                // Almost always "Include Font Data" being off on the importer,
-                // which leaves Unity holding the font's NAME instead of its
-                // outlines. Reading the file off disk sidesteps the importer
-                // entirely.
+                // ==========================================
+                // The rescue, and it has to work in a BUILD.
+                //
+                // TextMeshPro comes back with nothing here
+                // whenever the importer kept the font's NAME
+                // instead of its outlines - "Include Font
+                // Data" off, or a Character mode that bakes a
+                // fixed bitmap. Reading the file sidesteps the
+                // importer entirely.
+                //
+                // Until 2.1.8 the only way to the file was
+                // AssetDatabase, so the rescue existed in the
+                // Editor and nowhere else. The Editor then
+                // showed perfectly joined text while the
+                // player build had NO FONT ASSET AT ALL - not
+                // unjoined text, no text of ours at all, the
+                // label left on whatever asset the scene
+                // happened to serialize.
+                //
+                // Which is a far worse failure than the one
+                // 2.1.7 went after, and it hid behind it.
+                // ==========================================
                 string path = PathOf(font);
-                if (!string.IsNullOrEmpty(path)) { return LoadFromFile(path); }
+                if (!string.IsNullOrEmpty(path))
+                {
+                    TMP_FontAsset fromFile = LoadFromFile(path);
+                    if (fromFile != null) { return fromFile; }
+                }
+
+                byte[] baked = DirectFontBytes.For(font);
+                if (baked != null && baked.Length > 0)
+                {
+                    TMP_FontAsset fromBaked = LoadFromBytes(baked, font.name);
+                    if (fromBaked != null)
+                    {
+                        s_cache[key] = fromBaked;
+                        return fromBaked;
+                    }
+                }
 
                 Debug.LogWarning(
-                    $"[DirectTMP] '{font.name}' produced no font asset. Select the font in the "
-                    + "Project window and turn ON \"Include Font Data\" in the Inspector.");
+                    $"[DirectTMP] '{font.name}' produced no font asset and no file could be read "
+                    + "for it. Select the font in the Project window and turn ON \"Include Font "
+                    + "Data\" in the Inspector; in a build, check that "
+                    + "\"Unity DirectTMP ▸ Bake Fonts For Build\" has run.");
                 return null;
             }
 
