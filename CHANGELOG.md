@@ -5,6 +5,31 @@ All notable changes to **Unity DirectTMP** are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.9]
+
+### Fixed
+- **The baked table always loaded as null**, so the bytes 2.1.7 carried into
+  the build could not be read back out of it.
+
+  `DirectFontBytesTable` was declared inside `DirectFontBytes.cs`. Unity finds
+  a `ScriptableObject`'s `MonoScript` **by file name**, so it found nothing,
+  and the generated asset was saved with no script attached:
+
+  ```
+  No script asset for DirectFontBytesTable. Check that the definition is in a
+  file of the same name and that it compiles properly.
+  Script attached to 'DirectTMPFontBytes' in asset
+  'Assets/Resources/DirectTMPFontBytes.asset' is missing or no valid script is
+  attached.
+  ```
+
+  Two console errors naming the problem exactly, and the package shipped past
+  both of them. The class is now in `DirectFontBytesTable.cs`.
+
+- The baker deletes a table that has no script attached before writing a new
+  one, so a project carrying the broken 2.1.7 asset heals itself on the next
+  bake rather than failing to create over it.
+
 ## [2.1.8]
 
 ### Fixed

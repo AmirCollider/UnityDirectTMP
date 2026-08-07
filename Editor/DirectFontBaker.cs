@@ -267,6 +267,17 @@ namespace UnityDirectTMP.EditorTools
             Directory.CreateDirectory(TableFolder);
 
             var table = AssetDatabase.LoadAssetAtPath<DirectFontBytesTable>(TablePath);
+
+            // A table left behind by 2.1.7 has no script attached - the class
+            // was declared in a file of another name, so Unity could not find
+            // its MonoScript - and loads as null while the file sits there.
+            // Creating over it would be refused, so it goes first.
+            if (table == null && File.Exists(TablePath))
+            {
+                AssetDatabase.DeleteAsset(TablePath);
+                Debug.Log("[DirectTMP] Replaced a font table that had no script attached.");
+            }
+
             bool isNew = table == null;
 
             if (isNew) { table = ScriptableObject.CreateInstance<DirectFontBytesTable>(); }
