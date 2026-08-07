@@ -108,6 +108,42 @@ namespace UnityDirectTMP
         /// <summary>True once the font's own joining rules have been read.</summary>
         public bool HasJoiningRules => _joined != null && _joined.HasJoiningFeatures;
 
+        // ==========================================
+        // "Ask me again."
+        //
+        // Rasterizing a glyph can fail for reasons that
+        // pass: the atlas has not been created yet, the
+        // face is not current, TextMeshPro is part-way
+        // through setting the asset up. That is why such
+        // a failure is NOT remembered in _resolved - the
+        // next caller is meant to get a fresh answer.
+        //
+        // But nobody was asking again. A label shapes its
+        // text once, when the text changes, and then
+        // never again - so a label whose FIRST shaping
+        // pass landed in that window kept the unjoined
+        // result for the rest of the scene's life.
+        //
+        // Which is exactly "Persian is broken when it is
+        // the language the game starts in, and fine when
+        // you switch to it": switching changes the text,
+        // and changing the text is the only thing that
+        // ever caused a second attempt.
+        //
+        // So the failure is reported instead of being
+        // silently survivable, and DirectFont retries
+        // while it is set.
+        // ==========================================
+        /// <summary>
+        /// True when the last shaping pass gave up on a glyph for a reason that may pass, and
+        /// asking again in a frame or two is likely to do better. Cleared by
+        /// <see cref="ClearRetryWanted"/>, never on its own.
+        /// </summary>
+        public bool RetryWanted { get; private set; }
+
+        /// <summary>Forgets that a retry was wanted. Call before a shaping pass you intend to judge.</summary>
+        public void ClearRetryWanted() => RetryWanted = false;
+
         /// <summary>
         /// The joiner for a font asset, creating it on first use.
         /// <paramref name="bytes"/> is called at most once, and only if the
@@ -227,8 +263,10 @@ namespace UnityDirectTMP
                 }
 
                 // Rasterizing can fail for reasons that pass - no atlas yet,
-                // no face loaded. Not remembered, so the next label tries again
-                // rather than inheriting a verdict from a bad moment.
+                // no face loaded. Not remembered, so the next attempt gets a
+                // fresh answer rather than inheriting a verdict from a bad
+                // moment - and the caller is told to make one.
+                RetryWanted = true;
                 return '\0';
             }
 
@@ -267,7 +305,7 @@ namespace UnityDirectTMP
             uint glyph = Joined()?.LigatureGlyph(alef, form) ?? 0u;
             if (glyph != 0)
             {
-                if (!Register(target, glyph)) { return '\0'; }
+                if (!Register(target, glyph)) { RetryWanted = true; return '\0'; }
 
                 _source[target] = "gsub";
                 _resolved[key] = target;

@@ -292,21 +292,66 @@ namespace UnityDirectTMP
         // middle of TextMeshPro's own text generation is
         // asking for trouble.
         // ==========================================
+        // ==========================================
+        // Shaping the same text more than once.
+        //
+        // The first pass over a label runs against a font
+        // asset that was built moments ago and whose
+        // atlas may not be ready. Registering the font's
+        // own joined shapes can fail there - which the
+        // joiner treats as temporary and does not
+        // remember, precisely so that the next attempt
+        // can do better.
+        //
+        // There was no next attempt. Text is shaped when
+        // it CHANGES, so a label that shaped once during
+        // that window kept its unjoined result for as
+        // long as the scene lived.
+        //
+        // That is the whole of "Persian is broken when
+        // the game starts in Persian, and fine when you
+        // switch to it". Switching changes the text.
+        // Starting in it does not.
+        // ==========================================
+
+        /// <summary>
+        /// How many more frames this label will try the same text again, while the joiner is
+        /// still reporting shapes it could not register. Bounded, so a font that genuinely
+        /// cannot supply a shape costs a handful of frames rather than every frame forever.
+        /// </summary>
+        private int _attemptsLeft;
+
+        private const int Attempts = 30;
+
         private void Reshape(string text)
         {
             if (!fixRightToLeft || string.IsNullOrEmpty(text))
             {
                 _sourceText = text;
                 _shapedText = text;
+                _attemptsLeft = 0;
                 return;
             }
 
-            if (_sourceText == text) { return; }
+            bool isNewText = _sourceText != text;
 
+            if (!isNewText && _attemptsLeft <= 0) { return; }
+
+            _attemptsLeft = isNewText ? Attempts : _attemptsLeft - 1;
             _sourceText = text;
-            _shapedText = Prepare(text);
 
-            if (_shapedText != text) { Regenerate(); }
+            DirectFontJoiner joiner = _asset != null ? DirectFontJoiner.For(_asset) : null;
+            joiner?.ClearRetryWanted();
+
+            string shaped = Prepare(text);
+
+            // Nothing was left unfinished, so there is nothing to come back for.
+            if (joiner == null || !joiner.RetryWanted) { _attemptsLeft = 0; }
+
+            if (shaped == _shapedText) { return; }
+
+            _shapedText = shaped;
+            Regenerate();
         }
 
         // ==========================================

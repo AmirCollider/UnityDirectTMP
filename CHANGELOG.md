@@ -5,6 +5,32 @@ All notable changes to **Unity DirectTMP** are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.10]
+
+### Fixed
+- **A label came out unjoined when its language was the one the game started
+  in, and correct when you switched to that language.** Same label, same font,
+  same text — the difference was only whether the text had ever changed.
+
+  Rasterizing a glyph can fail for reasons that pass: the atlas has not been
+  created yet, the face is not current, TextMeshPro is part-way through setting
+  the asset up. `DirectFontJoiner` has always treated that as temporary and
+  deliberately not remembered it, so that the next attempt could do better.
+
+  There was no next attempt. A label shapes its text when the text **changes**,
+  so a label whose first and only shaping pass landed in that window kept the
+  unjoined result for as long as the scene lived. Switching language changes
+  the text; starting in a language does not.
+
+  The joiner now reports that it gave up on something recoverable, and
+  `DirectFont` re-shapes while that is set — bounded to 30 frames, so a font
+  that genuinely cannot supply a shape costs a handful of frames rather than
+  every frame forever. In practice it settles on the second attempt.
+
+### Added
+- `DirectFontJoiner.RetryWanted` and `ClearRetryWanted()`, so the question
+  "was that pass complete?" can be asked by anything driving shaping itself.
+
 ## [2.1.9]
 
 ### Fixed
