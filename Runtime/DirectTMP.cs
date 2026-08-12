@@ -133,6 +133,26 @@ namespace UnityDirectTMP
         }
 
         /// <summary>
+        /// Puts an outline on one label and on no other. Returns false if the
+        /// label has no Direct Font on it — <see cref="Apply"/> adds one.
+        ///
+        /// The outline is kept on the component rather than written straight
+        /// onto a material, because the material behind a generated font asset
+        /// is generated too and nothing set on it survives a reload.
+        /// </summary>
+        public static bool Outline(TMP_Text label, float width, Color color)
+        {
+            DirectFont direct = label == null ? null : label.GetComponent<DirectFont>();
+            if (direct == null) { return false; }
+
+            // Colour first: the width is what decides whether anything is
+            // written at all, so setting it second means one write, not two.
+            direct.OutlineColor = color;
+            direct.OutlineWidth = width;
+            return true;
+        }
+
+        /// <summary>
         /// A dynamic font asset for a font file, cached. Assign it to
         /// <c>label.font</c> yourself if you would rather not have a component.
         /// </summary>

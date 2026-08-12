@@ -5,6 +5,99 @@ All notable changes to **Unity DirectTMP** are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.11]
+
+### Fixed
+- **An outline did nothing at all, on any label.** 2.1.0 answered "an outline on
+  one label is an outline on every label using that font" with `Own material`,
+  which gives the label a material of its own. That part was right and is still
+  here. What it left out is where the outline itself was supposed to *live*.
+
+  A material is the only place TextMeshPro keeps an outline, and the material
+  behind a font asset this package generates is generated with it: built at
+  load, with no file underneath. **Nothing set on it can be saved** — not by the
+  scene, not by anything. So an outline set by hand held until the next reload,
+  and a reload is a recompile, entering play mode, or reopening the scene.
+  Every way of checking whether it worked went through one of those three, so
+  from a chair in front of Unity the outline had simply never been applied.
+
+  Worse, `Own material` made it *harder* to see: the label was moved onto an
+  instance material, so an outline set on the shared material — the one thing
+  in the project with an Inspector — was set on a material the label was no
+  longer using.
+
+  The outline is now a field on the component: **Outline ▸ Width** and
+  **Outline ▸ Colour**. The scene saves it, it is written onto the label's own
+  material every time that material is rebuilt, and it goes into the build. It
+  belongs to one label, and asking for one gives the label a material of its own
+  whatever the `Own material` checkbox says — an outline cannot be shared.
+
+  Two smaller things were part of "it does nothing" and are fixed with it:
+
+  - Widening an outline without widening the quad the letter is drawn on cuts
+    the outline off at the edge of the glyph. `UpdateMeshPadding` is called, the
+    way TextMeshPro's own material editor calls it.
+  - The mobile SDF shader — the one a generated font asset is given — compiles
+    its outline out entirely unless `OUTLINE_ON` is set, so writing the width
+    alone changed nothing. The keyword is set with the width.
+
+- **A label reported itself, in red, as a font that could not be built.**
+
+  > Could not build a font asset from 'IranianSans'. If TextMeshPro's Essential
+  > Resources are not imported yet, do that first…
+
+  Nothing was wrong with the font. `OnValidate` threw away the font asset the
+  component was holding, and `OnValidate` runs on every edit and on every
+  deserialization — while the Inspector paints in between it and the next
+  `LateUpdate`, which is where the asset was rebuilt. The Inspector was reading
+  an answer that had been deleted a moment before the question, and blaming the
+  project for it.
+
+  `OnValidate` now asks for the work to be done again instead of forgetting what
+  it knows, a build that fails leaves the previous asset in place rather than
+  the label with nothing, and the Inspector builds the asset before it accuses
+  anybody of anything.
+
+- **`Could not build a font asset from '…'` in the Console, on every edit, for a
+  font that was working.** `TMP_FontAsset.CreateFontAsset` refusing an imported
+  `Font` is the *ordinary* way into the rescue that reads the `.ttf` itself, and
+  2.1.8's rescue worked — but it never cached its result against the font, so
+  every rebuild asked TextMeshPro again, was refused again, and wrote the same
+  warning again. The rescued asset is now cached, the warning is not written for
+  a font that is about to be built by other means, and a font that genuinely
+  cannot be built is reported once instead of once per frame.
+
+- **`Own material` could leave a label drawing out of the wrong atlas.** The
+  instance came from TextMeshPro's `fontMaterial` getter, which caches the
+  instance it made and — depending on the version — hands the same one back
+  after the font asset underneath has been replaced. That instance still points
+  at the previous atlas, so the label looks up this font's letters in the
+  previous font's picture. A label that changes language changes font asset, so
+  this was not a corner case.
+
+  The material is copied here now, from the font asset's own, and checked
+  against the atlas it was copied for on every frame it is used.
+
+### Added
+- **`Outline ▸ Width` and `Outline ▸ Colour`** on the Direct Font component, and
+  `DirectFont.OutlineWidth` / `DirectFont.OutlineColor` to set them from code.
+- **`DirectTMP.Outline(label, width, colour)`** — the same thing in one call.
+- `DirectFont.Rebuild()`, which builds this label's font asset now rather than
+  at the next frame and hands it back. The Inspector uses it so that dragging a
+  slider shows its result immediately, rather than whenever the Editor next
+  decides to tick a component in edit mode.
+- A **Try again** button under the Inspector's error box, because a font that
+  could not be built is no longer asked a second time — this is how you say "I
+  have fixed the import settings now" without restarting anything.
+
+### Changed
+- The label's own material is copied from the font asset's rather than obtained
+  from `TMP_Text.fontMaterial`, and is marked `DontSave` — so it can no longer
+  be written into a scene file as an orphan pointing at an atlas that will not
+  exist next time. The one it replaces is destroyed rather than left behind.
+- Turning `Own material` off on a label with no outline now puts it back on the
+  shared material, instead of leaving it on an instance it no longer needs.
+
 ## [2.1.10]
 
 ### Fixed

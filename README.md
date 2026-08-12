@@ -73,6 +73,7 @@ From code, if you prefer:
 
 ```csharp
 DirectTMP.Apply(label, myFont);              // same thing the component does
+DirectTMP.Outline(label, 0.2f, Color.black); // an outline on this label only
 label.font = DirectTMP.Load(myFont);         // just the font asset
 label.font = DirectTMP.LoadFromFile(path);   // a .ttf on disk, at runtime
 ```
@@ -85,7 +86,9 @@ label.font = DirectTMP.LoadFromFile(path);   // a .ttf on disk, at runtime
 | **Persian / Arabic** | Used when the text is mostly Persian, Arabic or Urdu. Empty = use **Font**. |
 | **日本語 / 中文 / 한국어** | Used when the text is mostly Japanese, Chinese or Korean. Empty = use **Font**. |
 | **English / Latin** | Used when the text is mostly English or another Latin language. Empty = use **Font**. |
-| **Own material** | Gives this label its own material, so its outline stays its own. |
+| **Outline ▸ Width** | How thick an outline is drawn around this label's letters. 0 is no outline. |
+| **Outline ▸ Colour** | The colour of that outline. |
+| **Own material** | Gives this label its own material, so anything set on it stays its own. |
 | **Join Persian / Arabic** | Letter joining and right-to-left reading order. Free for text with no Arabic script. |
 | **Fix wrapped lines** | Keeps wrapped right-to-left lines in the correct order. |
 
@@ -95,9 +98,11 @@ label.font = DirectTMP.LoadFromFile(path);   // a .ttf on disk, at runtime
   fonts for. Each time the text changes, the script it is *actually* in is
   detected and the matching font is used — by counting characters, so
   `"Unity ۱۲۳ سلام دنیا"` is Persian, not English.
-- **🎨 No more outline bleed.** In TextMeshPro every label sharing a font shares
-  **one** material, so an outline on one is an outline on all. **Own material**
-  ends that, and it's on by default.
+- **🎨 An outline that belongs to one label.** In TextMeshPro every label sharing
+  a font shares **one** material, so an outline on one is an outline on all. Set
+  **Outline ▸ Width** here instead: it goes on a material this label owns, and it
+  is kept on the component — so it survives a recompile, play mode and the build,
+  which an outline set on a generated material cannot.
 - **🩺 Persian that actually reads.** Joined shapes are read from the font's own
   `GSUB` table and verified **glyph-for-glyph against HarfBuzz** — the engine
   behind Chrome, Firefox, Android and macOS — across five fonts.
@@ -122,6 +127,14 @@ A letter's joining class is also treated as a fact about **Unicode**, not about
 the font — so one missing glyph can no longer change the shape of the letter
 next to it — and letters Unicode never gave a presentation codepoint to (most of
 Arabic Extended-A, much of Kurdish, Sindhi and the African orthographies) join too.
+
+The font asset is built at load and has no file behind it, and so does the
+material that comes with it. That is what makes the Font Asset Creator
+unnecessary, and it is also why the outline is a field on the component: a
+material that cannot be saved cannot remember an outline you set on it, and
+every reload — a recompile, play mode, reopening the scene — hands the label a
+fresh one. Anything else you set on a material by hand has the same lifetime, so
+set it from code after the label is up, or ask for a field for it.
 
 What it does **not** do: contextual alternates (you get the standard joined
 shape, not Nastaliq typesetting), mark positioning (`GPOS` — harakat sit at the
@@ -190,6 +203,7 @@ https://github.com/AmirCollider/UnityDirectTMP.git
 
 ```csharp
 DirectTMP.Apply(label, myFont);              // همان کاری که کامپوننت می‌کند
+DirectTMP.Outline(label, 0.2f, Color.black); // OutLine فقط روی همین لیبل
 label.font = DirectTMP.Load(myFont);         // فقط خودِ فونت‌اَسِت
 label.font = DirectTMP.LoadFromFile(path);   // یک .ttf روی دیسک، در زمان اجرا
 ```
@@ -202,7 +216,9 @@ label.font = DirectTMP.LoadFromFile(path);   // یک .ttf روی دیسک، در
 | **Persian / Arabic** | وقتی متن بیشتر فارسی، عربی یا اردو باشد. خالی = همان **Font**. |
 | **日本語 / 中文 / 한국어** | وقتی متن بیشتر ژاپنی، چینی یا کره‌ای باشد. خالی = همان **Font**. |
 | **English / Latin** | وقتی متن بیشتر انگلیسی یا لاتین باشد. خالی = همان **Font**. |
-| **Own material** | متریال مخصوص همین لیبل، تا OutLine اش مال خودش بماند. |
+| **Outline ▸ Width** | ضخامت OutLine دور حروف همین لیبل. صفر یعنی بدون OutLine. |
+| **Outline ▸ Colour** | رنگ همان OutLine. |
+| **Own material** | متریال مخصوص همین لیبل، تا هرچه رویش تنظیم شود مال خودش بماند. |
 | **Join Persian / Arabic** | چسبیدن حروف و ترتیب راست‌به‌چپ. برای متن بدون خط عربی هیچ هزینه‌ای ندارد. |
 | **Fix wrapped lines** | ترتیب درست خط‌های شکسته‌شده در متن راست‌به‌چپ. |
 
@@ -212,9 +228,12 @@ label.font = DirectTMP.LoadFromFile(path);   // یک .ttf روی دیسک، در
   کنید. هر بار متن عوض شود، تشخیص داده می‌شود متن *واقعاً* در چه خطی نوشته شده و
   فونت مربوطه استفاده می‌شود — با شمردن کاراکترها، پس
   `"Unity ۱۲۳ سلام دنیا"` فارسی حساب می‌شود، نه انگلیسی.
-- **🎨 خداحافظی با OutLine سرایت‌کننده.** در TextMeshPro همهٔ لیبل‌هایی که یک فونت
-  دارند **یک** متریال مشترک دارند، پس OutLine روی یکی یعنی OutLine روی همه.
-  **Own material** این را تمام می‌کند و پیش‌فرض روشن است.
+- **🎨 OutLine ای که فقط مال یک لیبل است.** در TextMeshPro همهٔ لیبل‌هایی که یک
+  فونت دارند **یک** متریال مشترک دارند، پس OutLine روی یکی یعنی OutLine روی همه.
+  به جایش **Outline ▸ Width** را همین‌جا تنظیم کنید: روی متریالی می‌نشیند که مال
+  خودِ همین لیبل است و مقدارش روی خودِ کامپوننت ذخیره می‌شود — پس بعد از کامپایل
+  دوباره، ورود به Play Mode و در بیلد هم سرِ جایش می‌ماند؛ کاری که OutLine
+  تنظیم‌شده روی یک متریالِ ساخته‌شده در زمان اجرا نمی‌تواند بکند.
 - **🩺 فارسیِ واقعاً خوانا.** شکل‌های چسبیده از جدول `GSUB` خودِ فونت خوانده می‌شود
   و خروجی **گلیف‌به‌گلیف با HarfBuzz** — موتور پشت کروم، فایرفاکس، اندروید و
   مک‌اواس — روی پنج فونت تست شده است.
@@ -306,6 +325,7 @@ https://github.com/AmirCollider/UnityDirectTMP.git
 
 ```csharp
 DirectTMP.Apply(label, myFont);              // コンポーネントと同じ処理
+DirectTMP.Outline(label, 0.2f, Color.black); // このラベルだけにアウトライン
 label.font = DirectTMP.Load(myFont);         // フォントアセットだけ取得
 label.font = DirectTMP.LoadFromFile(path);   // ランタイムに .ttf を直接読み込む
 ```
@@ -318,7 +338,9 @@ label.font = DirectTMP.LoadFromFile(path);   // ランタイムに .ttf を直�
 | **Persian / Arabic** | テキストが主にペルシャ語・アラビア語・ウルドゥー語のとき使用。空欄なら **Font**。 |
 | **日本語 / 中文 / 한국어** | テキストが主に日本語・中国語・韓国語のとき使用。空欄なら **Font**。 |
 | **English / Latin** | テキストが主に英語などラテン文字のとき使用。空欄なら **Font**。 |
-| **Own material** | このラベル専用のマテリアルを与え、アウトラインを他へ波及させません。 |
+| **Outline ▸ Width** | このラベルの文字に描くアウトラインの太さ。0 でアウトラインなし。 |
+| **Outline ▸ Colour** | そのアウトラインの色。 |
+| **Own material** | このラベル専用のマテリアルを与え、設定を他へ波及させません。 |
 | **Join Persian / Arabic** | 文字の連結と右から左への語順。アラビア文字を含まないテキストでは無コストです。 |
 | **Fix wrapped lines** | 折り返された右から左のテキストの行順を正しく保ちます。 |
 
@@ -328,9 +350,12 @@ label.font = DirectTMP.LoadFromFile(path);   // ランタイムに .ttf を直�
   おくだけ。テキストが変わるたびに*実際の*文字体系が判定され、対応するフォントが
   使われます。判定は文字数で行うので `"Unity ۱۲۳ سلام دنیا"` は英語ではなく
   ペルシャ語として扱われます。
-- **🎨 アウトラインの巻き添えを解消。** TextMeshPro では同じフォントを使う
+- **🎨 そのラベルだけのアウトライン。** TextMeshPro では同じフォントを使う
   ラベルが**1 つ**のマテリアルを共有するため、片方のアウトラインが全部に及びます。
-  **Own material** がそれを断ち切ります（既定でオン）。
+  代わりに **Outline ▸ Width** をここで設定してください。このラベル専用の
+  マテリアルに書き込まれ、値はコンポーネント側に保存されるので、再コンパイル、
+  Play Mode、ビルドを越えて残ります — 生成されたマテリアルに直接設定した
+  アウトラインにはできないことです。
 - **🩺 本当に読めるペルシャ語。** 連結形はフォント自身の `GSUB` から読み出し、
   Chrome・Firefox・Android・macOS を支えるシェーピングエンジン **HarfBuzz と
   グリフ単位で照合**して 5 書体で検証済みです。
