@@ -97,6 +97,24 @@ namespace UnityDirectTMP
         private static readonly Dictionary<string, TMP_FontAsset> s_cache
             = new Dictionary<string, TMP_FontAsset>();
 
+        // ==========================================
+        // Fonts that could not be built, remembered so
+        // that they are not tried - and complained about -
+        // again.
+        //
+        // A font asset is asked for whenever a label
+        // rebuilds, which is every load, every recompile
+        // and every edit. Without this, a font that cannot
+        // be built writes the same warning to the Console
+        // over and over, and the one that matters is
+        // buried under a hundred copies of itself.
+        //
+        // Forgotten by ClearCache, and by the recompile
+        // that importing anything into the project causes -
+        // so a font that starts working starts working.
+        // ==========================================
+        private static readonly HashSet<string> s_failed = new HashSet<string>();
+
         /// <summary>How many font assets are cached.</summary>
         public static int CachedCount => s_cache.Count;
 
@@ -108,6 +126,7 @@ namespace UnityDirectTMP
         {
             int count = s_cache.Count;
             s_cache.Clear();
+            s_failed.Clear();
             DirectFontSource.Clear();
             DirectFontJoiner.Clear();
             return count;
@@ -128,8 +147,11 @@ namespace UnityDirectTMP
 
             string key = "font:" + font.GetInstanceID();
             if (s_cache.TryGetValue(key, out TMP_FontAsset cached) && cached != null) { return cached; }
+            if (s_failed.Contains(key)) { return null; }
 
             TMP_FontAsset asset = null;
+            string refused = null;
+
             try
             {
                 asset = TMP_FontAsset.CreateFontAsset(
@@ -138,7 +160,13 @@ namespace UnityDirectTMP
             }
             catch (Exception e)
             {
-                Debug.LogWarning($"[DirectTMP] Could not build a font asset from '{font.name}': {e.Message}");
+                // Not reported here. TextMeshPro refusing the imported Font is
+                // the ORDINARY way into the rescue below, and a warning saying
+                // the font could not be built - written while it is about to be
+                // built from the file instead - is a false alarm that sends
+                // people looking for a problem they do not have. It is kept and
+                // reported only if the rescue fails too.
+                refused = e.Message;
             }
 
             if (asset == null)
@@ -169,7 +197,17 @@ namespace UnityDirectTMP
                 if (!string.IsNullOrEmpty(path))
                 {
                     TMP_FontAsset fromFile = LoadFromFile(path);
-                    if (fromFile != null) { return fromFile; }
+                    if (fromFile != null)
+                    {
+                        // Cached under the FONT as well as under the path.
+                        // Without this the rescue is rerun from scratch on every
+                        // rebuild - TextMeshPro asked and refused each time - so
+                        // a font that works perfectly well still paid for a
+                        // failed CreateFontAsset, and said so in the Console, on
+                        // every load, every recompile and every edit.
+                        s_cache[key] = fromFile;
+                        return fromFile;
+                    }
                 }
 
                 byte[] baked = DirectFontBytes.For(font);
@@ -183,11 +221,18 @@ namespace UnityDirectTMP
                     }
                 }
 
+                s_failed.Add(key);
+
                 Debug.LogWarning(
                     $"[DirectTMP] '{font.name}' produced no font asset and no file could be read "
                     + "for it. Select the font in the Project window and turn ON \"Include Font "
                     + "Data\" in the Inspector; in a build, check that "
-                    + "\"Unity DirectTMP ▸ Bake Fonts For Build\" has run.");
+                    + "\"Unity DirectTMP ▸ Bake Fonts For Build\" has run."
+                    + (string.IsNullOrEmpty(refused)
+                        ? string.Empty
+                        : $"\nTextMeshPro refused the imported font with: {refused}")
+                    + "\nThis is said once; after fixing it, recompile or use "
+                    + "\"Unity DirectTMP ▸ Clear Font Cache\" to try again.");
                 return null;
             }
 
@@ -215,17 +260,20 @@ namespace UnityDirectTMP
 
             string key = "path:" + resolved;
             if (s_cache.TryGetValue(key, out TMP_FontAsset cached) && cached != null) { return cached; }
+            if (s_failed.Contains(key)) { return null; }
 
             byte[] bytes;
             try { bytes = File.ReadAllBytes(resolved); }
             catch (Exception e)
             {
+                // Not remembered as a failure: a file that cannot be read right
+                // now is often a file that is being written right now.
                 Debug.LogWarning($"[DirectTMP] Could not read '{resolved}': {e.Message}");
                 return null;
             }
 
             TMP_FontAsset asset = FromBytes(bytes, Path.GetFileNameWithoutExtension(resolved));
-            if (asset == null) { return null; }
+            if (asset == null) { s_failed.Add(key); return null; }
 
             DirectFontSource.Remember(asset, () => File.ReadAllBytes(resolved));
             s_cache[key] = asset;
