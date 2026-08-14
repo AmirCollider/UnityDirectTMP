@@ -622,6 +622,134 @@ namespace UnityDirectTMP
 
         private const int Attempts = 30;
 
+        // ==========================================
+        // A LINE BREAK IS NOT A PROPERTY OF THE TEXT
+        //
+        // The pass below turns one paragraph into the
+        // display lines TextMeshPro would break it into,
+        // and writes those breaks into the string as real
+        // '\n'. That is what lets each line be reordered on
+        // its own, and it is also an answer that GOES OFF:
+        // a hard break stays exactly where it was put, so
+        // the moment anything that decides where lines break
+        // moves, the label is wearing last question's
+        // answer.
+        //
+        // Until now that answer was filed under the TEXT and
+        // nothing else, and worked out once, in the
+        // LateUpdate after the text changed. Both reported
+        // faults are that one sentence:
+        //
+        //   * MAKE THE FONT SMALLER AND A TWO-LINE SENTENCE
+        //     STAYS TWO LINES. It fits on one now. The break
+        //     in the middle of it is a real newline, and a
+        //     real newline does not care that there is room.
+        //     Only retyping the sentence fixed it, because
+        //     only retyping it asked the question again.
+        //
+        //   * A SENTENCE SET FROM CODE COMES OUT WITH ITS
+        //     LINES SHUFFLED, while the same sentence typed
+        //     into the Inspector is fine. Nothing is wrong
+        //     with the sentence. The measuring runs in
+        //     LateUpdate - and Unity rebuilds UI layout
+        //     AFTER LateUpdate, on Canvas.willRenderCanvases.
+        //     So a label whose width was decided during that
+        //     same frame - a panel that just opened, a layout
+        //     group that just ran, a font asset built moments
+        //     ago whose atlas is a frame from being ready -
+        //     is measured at the width it had a moment ago
+        //     and drawn at the width it has now. The breaks
+        //     land in the wrong places, or the measurement
+        //     reports one line where two get drawn and the
+        //     whole paragraph is reordered as one - which is
+        //     the shuffle, exactly.
+        //
+        //     In the Editor the layout settled thousands of
+        //     frames before anybody typed, and the font has
+        //     been warm since the scene opened. That is the
+        //     whole of "it only happens in the game".
+        //
+        // Either way the text never changes again, so one
+        // bad measurement was permanent.
+        //
+        // The answer is therefore kept together with the
+        // question it was asked of - the width, the size,
+        // the spacing, the style, the font asset - and asked
+        // again when any of them moves. And because a
+        // measurement can be wrong without anything moving
+        // at all, what was drawn is checked against what was
+        // asked for: more lines on the screen than were cut
+        // by hand means the measurement was not describing
+        // this label, and the screen wins.
+        // ==========================================
+
+        /// <summary>
+        /// Everything about a label that decides where its lines break. Not what it says -
+        /// that is asked separately - and nothing that only moves things down the screen.
+        /// </summary>
+        private struct LineTerms
+        {
+            public float Width;
+            public float Height;
+            public float Size;
+            public float Low;
+            public float High;
+            public float Character;
+            public float Word;
+            public Vector4 Margin;
+            public FontStyles Style;
+            public bool Wraps;
+            public TMP_FontAsset Asset;
+
+            public bool Same(LineTerms other)
+            {
+                return Mathf.Approximately(Width, other.Width)
+                    && Mathf.Approximately(Height, other.Height)
+                    && Mathf.Approximately(Size, other.Size)
+                    && Mathf.Approximately(Low, other.Low)
+                    && Mathf.Approximately(High, other.High)
+                    && Mathf.Approximately(Character, other.Character)
+                    && Mathf.Approximately(Word, other.Word)
+                    && Margin == other.Margin
+                    && Style == other.Style
+                    && Wraps == other.Wraps
+                    && ReferenceEquals(Asset, other.Asset);
+            }
+        }
+
+        // The terms the current breaks were worked out under, and the terms
+        // seen on the frame before this one.
+        private LineTerms _terms;
+        private LineTerms _seen;
+
+        // How many display lines the string handed to TextMeshPro was cut into
+        // by hand. 0 means "not cut by hand", which is also "do not check this
+        // one" - a paragraph nobody cut may wrap into as many lines as it likes.
+        private int _lines;
+
+        // How many more times a disagreement between those lines and the lines
+        // actually drawn may force the work again. Bounded, because a label can
+        // disagree for reasons that are nobody's fault - a <br> in the text, an
+        // overflow mode that drops lines - and those would otherwise re-measure
+        // for the rest of the session.
+        private int _checksLeft;
+
+        private const int Checks = 4;
+
+        // Consecutive re-measures that changed the answer while nothing but the
+        // layout moved. A label whose own line breaks change its own layout
+        // could chase itself forever; this gives up after a couple of dozen
+        // frames and keeps the last answer. Cleared the moment either the
+        // layout or the answer holds still.
+        private int _restless;
+
+        private const int Restless = 24;
+
+        // Whether the current text has anything in it that reordering could put
+        // in the wrong place. Worked out when the text changes, because the
+        // question is asked every frame and the answer is a scan of the string.
+        private bool _hasRightToLeft;
+
         private void Reshape(string text)
         {
             if (!fixRightToLeft || string.IsNullOrEmpty(text))
@@ -629,28 +757,143 @@ namespace UnityDirectTMP
                 _sourceText = text;
                 _shapedText = text;
                 _attemptsLeft = 0;
+                _lines = 0;
+                _checksLeft = 0;
+                _restless = 0;
                 return;
             }
 
             bool isNewText = _sourceText != text;
 
-            if (!isNewText && _attemptsLeft <= 0) { return; }
+            if (isNewText) { _hasRightToLeft = DirectBidi.ContainsRightToLeft(text); }
 
-            _attemptsLeft = isNewText ? Attempts : _attemptsLeft - 1;
+            // Only a paragraph that was cut into lines by hand can go off, so
+            // only then are any of these questions worth asking.
+            bool cutByHand = !isNewText && fixWrappedLines && _hasRightToLeft && _label != null && Wraps();
+
+            LineTerms terms = cutByHand ? TermsNow() : _terms;
+
+            // The layout has stopped moving: whatever we were chasing has been
+            // caught, so the runaway guard starts again from zero.
+            if (cutByHand && terms.Same(_seen)) { _restless = 0; }
+            _seen = terms;
+
+            bool moved = cutByHand && !terms.Same(_terms) && _restless < Restless;
+            bool miscut = cutByHand && !moved && _checksLeft > 0 && Miscut();
+
+            if (!isNewText && !moved && !miscut && _attemptsLeft <= 0) { return; }
+
+            if (miscut) { _checksLeft--; }
+
+            if (isNewText)
+            {
+                _attemptsLeft = Attempts;
+                _checksLeft = Checks;
+                _restless = 0;
+            }
+            else if (_attemptsLeft > 0)
+            {
+                _attemptsLeft--;
+            }
+
             _sourceText = text;
 
             DirectFontJoiner joiner = _asset != null ? DirectFontJoiner.For(_asset) : null;
             joiner?.ClearRetryWanted();
 
-            string shaped = Prepare(text);
+            bool perLine = PerLine(text);
+            string shaped = perLine ? ByLine(text) : DirectTMP.Prepare(text, _asset);
 
             // Nothing was left unfinished, so there is nothing to come back for.
             if (joiner == null || !joiner.RetryWanted) { _attemptsLeft = 0; }
 
-            if (shaped == _shapedText) { return; }
+            // The terms this answer holds for, read AFTER the measuring rather
+            // than before it: measuring generates the text once, which is where
+            // auto-sizing settles on the size it will actually draw at.
+            _terms = perLine ? TermsNow() : default;
+            _seen = _terms;
+
+            if (shaped == _shapedText)
+            {
+                // The same answer as last time. Whatever moved, it did not move
+                // this, so there is nothing to chase.
+                _restless = 0;
+                return;
+            }
+
+            if (!isNewText) { _restless++; }
 
             _shapedText = shaped;
+            _lines = perLine ? Lines(shaped) : 0;
             Regenerate();
+        }
+
+        /// <summary>
+        /// Everything that decides where this label's lines break, as it stands right now.
+        /// </summary>
+        private LineTerms TermsNow()
+        {
+            RectTransform rect = _label.rectTransform;
+            bool auto = _label.enableAutoSizing;
+
+            return new LineTerms
+            {
+                Width = rect != null ? rect.rect.width : 0f,
+
+                // Only worth watching when the height is an INPUT to where the
+                // lines break, which is to say when auto-sizing is shrinking the
+                // text to fit it. Otherwise a label under a content size fitter
+                // would re-measure every time its own new line count made it
+                // taller, and chase its own tail down the screen.
+                Height = auto && rect != null ? rect.rect.height : 0f,
+
+                // With auto-sizing on, fontSize is an ANSWER, not a question -
+                // TextMeshPro writes the size it settled on back into it. Watch
+                // the bounds it was allowed to settle between instead.
+                Size = auto ? -1f : _label.fontSize,
+                Low = auto ? _label.fontSizeMin : 0f,
+                High = auto ? _label.fontSizeMax : 0f,
+
+                Character = _label.characterSpacing,
+                Word = _label.wordSpacing,
+                Margin = _label.margin,
+                Style = _label.fontStyle,
+                Wraps = Wraps(),
+                Asset = _asset,
+            };
+        }
+
+        /// <summary>
+        /// Whether the label drew more lines than were cut into it by hand - which means the
+        /// measurement those cuts came from was not describing this label, and TextMeshPro has
+        /// wrapped one of our lines again behind our back. Only ever asked in that direction:
+        /// FEWER lines on screen is an overflow mode dropping them, which is not ours to fix.
+        /// </summary>
+        private bool Miscut()
+        {
+            if (_measuring || _lines <= 0 || _label == null) { return false; }
+
+            // Still waiting to be generated, so textInfo is describing the text
+            // before this one. Asking now compares two different sentences.
+            if (_label.havePropertiesChanged) { return false; }
+
+            TMP_TextInfo info = _label.textInfo;
+            if (info == null || info.characterCount <= 0) { return false; }
+
+            return info.lineCount > _lines;
+        }
+
+        private static int Lines(string text)
+        {
+            if (string.IsNullOrEmpty(text)) { return 0; }
+
+            int lines = 1;
+            for (int i = 0; i < text.Length; i++)
+            {
+                if (text[i] == '\n') { lines++; }
+            }
+
+            return lines;
         }
 
         // ==========================================
@@ -688,9 +931,27 @@ namespace UnityDirectTMP
         // same breaks.
         // ==========================================
         private string Prepare(string text)
-        {
-            if (!fixWrappedLines || _label == null || !Wraps()) { return DirectTMP.Prepare(text, _asset); }
+            => PerLine(text) ? ByLine(text) : DirectTMP.Prepare(text, _asset);
 
+        /// <summary>
+        /// Whether this text has to be broken into display lines before it is reordered.
+        ///
+        /// Only when there is something in it that reordering would move, AND the label is
+        /// allowed to wrap. A paragraph with nothing right-to-left in it cannot come out in the
+        /// wrong order however it wraps - and measuring is a whole text generation, so a label
+        /// of English must not be made to pay for one every time its size moves.
+        /// </summary>
+        private bool PerLine(string text)
+        {
+            return fixWrappedLines
+                && _label != null
+                && !string.IsNullOrEmpty(text)
+                && DirectBidi.ContainsRightToLeft(text)
+                && Wraps();
+        }
+
+        private string ByLine(string text)
+        {
             // ==========================================
             // Line endings, all three of them.
             //
@@ -867,7 +1128,17 @@ namespace UnityDirectTMP
             // The ordinary path: LateUpdate already shaped this exact string.
             if (_sourceText == text && _shapedText != null) { return _shapedText; }
 
-            // Text set and drawn inside the same frame, before LateUpdate ran.
+            // Text set and drawn inside the same frame, before LateUpdate ran -
+            // code that assigns .text and calls ForceMeshUpdate on the next
+            // line, most often.
+            //
+            // This one cannot be broken into display lines: finding out where
+            // they fall means asking TextMeshPro to generate the text, and we
+            // are being called from inside TextMeshPro generating the text.
+            // So it is reordered a paragraph at a time, which is right for a
+            // paragraph that fits on one line and shuffled for one that does
+            // not - for exactly one frame. The next LateUpdate sees a string it
+            // has not shaped, does the per-line pass properly and regenerates.
             return DirectTMP.Prepare(text, _asset);
         }
     }

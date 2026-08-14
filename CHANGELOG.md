@@ -5,6 +5,81 @@ All notable changes to **Unity DirectTMP** are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.12]
+
+### Fixed
+- **A Persian sentence set from code came out with its lines shuffled, while the
+  same sentence typed into the Inspector was fine.**
+
+  > خوش اومدی! برای ورود با یک اکانت دیگه، دوباره همین رو بزن.
+
+  drawn as `اومدی! برای ورود با یک` / `خوش` / `اکانت دیگه، دوباره همین رو بزن.`
+  — every line internally correct, the lines themselves in the wrong places.
+
+  2.1.5 fixed this by breaking the paragraph into display lines *first* and
+  reordering each line on its own, and that pass is right and is still here.
+  What was wrong is **when it was allowed to ask the question, and how long it
+  was allowed to keep the answer.**
+
+  Those breaks are written into the string as real `\n`, and the answer was
+  filed under the *text* and nothing else — worked out once, in the `LateUpdate`
+  after the text changed, and then never again for as long as that text stood.
+  So one bad measurement was permanent.
+
+  And in a game, the measurement is taken at the worst possible moment. **Unity
+  rebuilds UI layout after `LateUpdate`**, on `Canvas.willRenderCanvases`. A
+  label whose width is decided during that same frame — a panel that just
+  opened, a layout group that just ran, a screen that just rotated — is
+  *measured* at the width it had a moment ago and *drawn* at the width it has
+  now. A font asset built moments earlier makes it worse: its atlas is a frame
+  from being ready, so the measurement can report one line where two get drawn,
+  and one line means the whole paragraph is reordered as a single unit — which
+  is the shuffle, exactly.
+
+  In the Editor none of that is true. The layout settled thousands of frames
+  before anybody typed and the font has been warm since the scene opened, so
+  the measurement is always right there. That is the whole of "it only happens
+  in the game, and only for the strings that come from code".
+
+  The breaks are now kept together with the question they were the answer to —
+  the width, the font size, the character and word spacing, the margins, the
+  style, the font asset — and worked out again the moment any of those moves.
+  A wrong first measurement is corrected on the next frame instead of standing
+  for the life of the scene.
+
+- **Shrinking the font left a two-line sentence on two lines.** Same cause, seen
+  from the other side. The break in the middle of the sentence is a real
+  newline, and a real newline does not care that the text now fits on one line.
+  Retyping the sentence was the only thing that fixed it, because retyping it
+  was the only thing that asked the question again. Changing the size now asks
+  it again, and so does changing the label's width, its spacing, its margins,
+  its style or its font.
+
+- **A measurement can be wrong without anything moving at all** — a font asset
+  whose atlas was not ready yet gives back glyph widths that are not the ones
+  that will be drawn. So what was actually drawn is now checked against what was
+  asked for: more lines on the screen than were cut by hand means the
+  measurement was not describing this label, and the work is done again. The
+  check only ever runs in that direction — *fewer* lines on screen is an
+  overflow mode dropping them, which is not this package's business — and it is
+  bounded, so a `<br>` in the text costs a handful of frames rather than a
+  re-measure every frame forever.
+
+### Changed
+- **A label with no right-to-left text in it no longer measures at all.**
+  Working out where the display lines fall means asking TextMeshPro to generate
+  the text, and a paragraph with nothing right-to-left in it cannot come out in
+  the wrong order however it wraps. English, CJK and symbol labels now skip the
+  pass outright — which matters more than it did, because the pass is no longer
+  a once-per-text cost.
+- Text set and drawn inside the same frame — `label.text = …` followed by
+  `ForceMeshUpdate()` on the next line — is still reordered a paragraph at a
+  time for that one frame, because finding the display lines means asking
+  TextMeshPro to generate the text and we are being called from inside
+  TextMeshPro generating the text. The next `LateUpdate` does the per-line pass
+  properly and regenerates. `DirectFont.Rebuild()` forces it immediately for
+  code that cannot wait a frame.
+
 ## [2.1.11]
 
 ### Fixed
