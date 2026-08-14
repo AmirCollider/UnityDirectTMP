@@ -745,6 +745,82 @@ namespace UnityDirectTMP
 
         private const int Restless = 24;
 
+        // ==========================================
+        // THE STRING THAT WAS MEASURED IS NOT THE
+        // STRING THAT GETS DRAWN.
+        //
+        // Where the lines break is worked out from the
+        // SHAPED text - letters joined, still in the order
+        // they were typed - because a break found there is
+        // a break at a known place in the sentence. What
+        // is finally drawn is that same text REORDERED, a
+        // line at a time.
+        //
+        // Same glyphs, same count, and it is very easy to
+        // read that as the same width. It is not:
+        //
+        //   * KERNING IS A PROPERTY OF A PAIR. Reordering
+        //     a right-to-left run reverses every pair in
+        //     it, so a font carrying kerning for Arabic
+        //     gives the reordered line a width the shaped
+        //     line never had.
+        //
+        //   * A GLYPH THE ATLAS HAS NOT RASTERIZED YET is
+        //     measured at whatever is standing in for it -
+        //     a fallback font's version of it, or nothing
+        //     at all - and on a device the atlas fills
+        //     over frames. In the Editor it has been full
+        //     since the scene opened. That is the whole of
+        //     "it is right in the Editor and wrong in the
+        //     build".
+        //
+        // A line TextMeshPro has just broken is as full as
+        // a line can be, so a width that comes back even a
+        // hair over IS over, and TextMeshPro wraps it a
+        // second time. The line is in visual order by
+        // then, so what sheds onto the line below is its
+        // last run - which is the FIRST word of the
+        // sentence:
+        //
+        //     اومدی! برای ورود با یک
+        //     خوش
+        //
+        // Every line internally correct and one word
+        // stranded, which is what "the text comes out
+        // scrambled on my phone" looks like from a chair.
+        //
+        // Chasing the individual reasons a width can come
+        // back different is a losing game - there is
+        // always one more. So the answer is checked
+        // against the only thing that settles it: THE
+        // FINISHED STRING IS MEASURED, exactly as it will
+        // be drawn, and if TextMeshPro would break one of
+        // our lines again then the breaks were asked for
+        // at a width this text cannot actually hold. They
+        // are asked for again at a slightly narrower one,
+        // until they hold.
+        //
+        // Being a hair narrow costs a word moving down a
+        // line it did not strictly have to. Being a hair
+        // wide costs the sentence.
+        // ==========================================
+
+        // How much narrower than the label the breaks were last asked for, in
+        // the label's own units. Kept between frames: a label that needed the
+        // room once needs it again, and starting from nothing every time would
+        // spend a drawn frame on the wrong answer before finding the right one.
+        private float _slack;
+
+        // How many widths one pass may try. Bounded, because a single word
+        // longer than the line never fits however much room is left beside it,
+        // and must not cost a text generation every frame forever.
+        private const int SlackTries = 4;
+
+        // The most of the label's width that may ever be held back. A line
+        // broken this early is worse to look at than one broken a word late, so
+        // past here the answer is not worth having.
+        private const float SlackLimit = 0.4f;
+
         // Whether the current text has anything in it that reordering could put
         // in the wrong place. Worked out when the text changes, because the
         // question is asked every frame and the answer is a scan of the string.
@@ -760,6 +836,7 @@ namespace UnityDirectTMP
                 _lines = 0;
                 _checksLeft = 0;
                 _restless = 0;
+                _slack = 0f;
                 return;
             }
 
@@ -789,7 +866,32 @@ namespace UnityDirectTMP
 
             if (!isNewText && !moved && !miscut && _attemptsLeft <= 0) { return; }
 
-            if (miscut) { _checksLeft--; }
+            if (miscut)
+            {
+                _checksLeft--;
+
+                // ==========================================
+                // The lines drawn disagree with the lines
+                // cut, and this string was already checked
+                // against a measurement of itself before it
+                // was handed over. So the measurement and
+                // the drawing disagree - the atlas finished
+                // filling between the two, most likely -
+                // and asking the same question again would
+                // get the same answer and spend a check
+                // learning nothing.
+                //
+                // The next attempt is given more room than
+                // this one had. That is the one thing that
+                // makes it a different question.
+                // ==========================================
+                _slack += SlackStep();
+            }
+
+            // Different terms: the room left over was worked out against a
+            // label that no longer exists, so it is worked out again from
+            // nothing rather than carried onto a width it was never about.
+            if (moved || isNewText) { _slack = 0f; }
 
             if (isNewText)
             {
@@ -976,7 +1078,125 @@ namespace UnityDirectTMP
                 && Wraps();
         }
 
+        // ==========================================
+        // Cut the paragraphs, then CHECK THE CUT.
+        //
+        // The first attempt asks for the breaks at the
+        // width the label actually has, which is what this
+        // has always done and what is right whenever the
+        // reordered lines come out the width they were
+        // measured at. The finished string is then
+        // measured as a whole - the real string, at the
+        // real width - and if TextMeshPro would break one
+        // of our lines a second time, the attempt is
+        // repeated with more room left over.
+        //
+        // The check costs one text generation, and it is
+        // paid only by a label this pass runs on at all -
+        // right-to-left text on a label allowed to wrap -
+        // and only on the frames its text or its layout
+        // actually moved. A label whose lines come out the
+        // width they were measured at, which is nearly all
+        // of them, pays that one and stops.
+        // ==========================================
         private string ByLine(string text)
+        {
+            float room = Room();
+            float cap = room > 0f ? room * SlackLimit : 0f;
+            float slack = Mathf.Clamp(_slack, 0f, cap);
+            float grow = SlackStep();
+            string first = null;
+
+            for (int attempt = 0; attempt < SlackTries; attempt++)
+            {
+                int lines;
+                string built = Built(text, slack, out lines);
+
+                if (first == null) { first = built; }
+
+                // ==========================================
+                // Asked even of a paragraph that came back
+                // as ONE line, which is where it matters
+                // most.
+                //
+                // One line is not cut anywhere, so it is
+                // reordered whole - and if the reordered
+                // version is the hair wider that puts it
+                // over, TextMeshPro breaks a string that is
+                // already in visual order and the two lines
+                // come out back to front. That is not a
+                // word in the wrong place, it is the
+                // sentence in the wrong order, and skipping
+                // the check here because "one line cannot
+                // be shuffled" is how it got missed.
+                //
+                // Fewer lines than were cut is fine and is
+                // not asked about: that is an overflow mode
+                // dropping them, which is not ours.
+                // ==========================================
+                int drawn = Drawn(built);
+                if (drawn <= lines) { _slack = slack; return built; }
+
+                float next = slack + grow;
+                grow *= 2f;
+
+                // ==========================================
+                // The last try stops nibbling.
+                //
+                // Doubling covers the small disagreements -
+                // a space, a kerning pair - in a step or
+                // two, and those are what nearly every
+                // label runs into. Anything still here is
+                // not small, and there is one honest thing
+                // to say about how big it is: the text
+                // wanted `drawn` lines at a width it was
+                // cut into `lines` at, so it is about
+                // drawn/lines wider than that width. Ask
+                // for that outright rather than creeping up
+                // on it and running out of tries.
+                // ==========================================
+                if (attempt + 2 == SlackTries)
+                {
+                    next = Mathf.Max(next, room * (1f - (float)lines / drawn));
+                }
+
+                if (next > cap) { break; }
+                slack = next;
+            }
+
+            // Room was not the problem. A word longer than the line is the
+            // usual reason, and no width fixes that - so the narrowest answer
+            // reads no better than the first, and the first is what is kept.
+            return first;
+        }
+
+        /// <summary>
+        /// How wide this label's lines are allowed to be, in its own units.
+        /// </summary>
+        private float Room()
+        {
+            RectTransform rect = _label != null ? _label.rectTransform : null;
+            if (rect == null) { return 0f; }
+
+            Vector4 margin = _label.margin;
+            return rect.rect.width - margin.x - margin.z;
+        }
+
+        /// <summary>
+        /// What one step of room is worth, in the label's own units. Tied to the font size
+        /// because everything a width can disagree by is measured in it: a space, a kerning
+        /// pair, a glyph standing in for one the atlas has not rasterized yet.
+        /// </summary>
+        private float SlackStep()
+        {
+            float size = _label != null ? _label.fontSize : 0f;
+            return size > 0f && !float.IsNaN(size) ? size * 0.35f : 1f;
+        }
+
+        // Every paragraph shaped, broken where TextMeshPro would break it with
+        // `slack` of the width held back, and reordered a line at a time.
+        // `lines` comes back as the number of display lines that came to.
+        private string Built(string text, float slack, out int lines)
         {
             // ==========================================
             // Line endings, all three of them.
@@ -1004,13 +1224,36 @@ namespace UnityDirectTMP
             string[] paragraphs = DirectTMP.Paragraphs(text);
             var built = new System.Text.StringBuilder(text.Length + paragraphs.Length);
 
+            lines = 0;
+
+            // The '\n' between two paragraphs ends the last line of one and
+            // starts the first line of the next; it does not add a line of its
+            // own, so the count is the paragraphs' own lines and nothing else.
             for (int i = 0; i < paragraphs.Length; i++)
             {
                 if (i > 0) { built.Append('\n'); }
-                built.Append(Paragraph(paragraphs[i]));
+                lines += Paragraph(built, paragraphs[i], slack);
             }
 
             return built.ToString();
+        }
+
+        /// <summary>
+        /// How many lines TextMeshPro makes of the finished string, at the width it will be
+        /// drawn at. 0 when it could not be asked.
+        ///
+        /// This is the only honest question there is, because it is asked of the exact string
+        /// that will be drawn. Everything the cut was worked out from - shaped rather than
+        /// reordered text, an atlas that may not have been full yet - is behind it by now.
+        /// </summary>
+        private int Drawn(string built)
+        {
+            TMP_TextInfo info = Measure(built, 0f);
+
+            // Nothing came back, so there is nothing that disagrees.
+            if (info == null || info.characterCount <= 0) { return 0; }
+
+            return info.lineCount;
         }
 
         // ==========================================
@@ -1059,41 +1302,63 @@ namespace UnityDirectTMP
         // ==========================================
 
         // One paragraph: shaped, broken where TextMeshPro would break it, and
-        // reordered a line at a time.
-        private string Paragraph(string text)
+        // reordered a line at a time. Returns how many display lines it came to.
+        private int Paragraph(System.Text.StringBuilder into, string text, float slack)
         {
-            if (string.IsNullOrEmpty(text)) { return text; }
+            if (string.IsNullOrEmpty(text)) { into.Append(text); return 1; }
 
             string shaped = DirectTMP.Shape(text, _asset);
 
-            int[] breaks = LineBreaksOf(shaped);
-            if (breaks == null || breaks.Length <= 1) { return DirectTMP.Reorder(shaped); }
+            int[] breaks = LineBreaksOf(shaped, slack);
 
-            var built = new System.Text.StringBuilder(shaped.Length + breaks.Length);
+            if (breaks == null || breaks.Length <= 1)
+            {
+                // ==========================================
+                // A paragraph that fits on one line has the
+                // most to lose from its trailing whitespace,
+                // not the least.
+                //
+                // It fits BECAUSE that whitespace hangs off
+                // the end for free. Reordering carries it to
+                // the visual left, where it is a leading
+                // space and not free at all - so the one
+                // line becomes two, and this is the branch
+                // that reorders the whole paragraph at once.
+                // Both lines come out internally correct and
+                // in the wrong order.
+                //
+                // Dropping it costs nothing that can be
+                // seen: whitespace at the end of a line is
+                // invisible wherever it ends up.
+                // ==========================================
+                into.Append(DirectTMP.Reorder(shaped.Substring(0, Unhung(shaped, 0, shaped.Length))));
+                return 1;
+            }
 
             for (int i = 0; i < breaks.Length; i++)
             {
-                if (i > 0) { built.Append('\n'); }
+                if (i > 0) { into.Append('\n'); }
 
                 int start = breaks[i];
-                bool last = i + 1 >= breaks.Length;
-                int end = last ? shaped.Length : breaks[i + 1];
-
-                // Only where a break was made. The end of the paragraph is the
-                // author's own, and whatever they put there stays.
-                if (!last)
-                {
-                    while (end > start && Hangs(shaped[end - 1])) { end--; }
-                }
+                int end = Unhung(shaped, start, i + 1 < breaks.Length ? breaks[i + 1] : shaped.Length);
 
                 // A line of nothing but the space that ended it. It still
                 // happened, so it is still a line.
                 if (end <= start) { continue; }
 
-                built.Append(DirectTMP.Reorder(shaped.Substring(start, end - start)));
+                into.Append(DirectTMP.Reorder(shaped.Substring(start, end - start)));
             }
 
-            return built.ToString();
+            return breaks.Length;
+        }
+
+        /// <summary>
+        /// Where a line ends once the whitespace hanging off the end of it has been left off.
+        /// </summary>
+        private static int Unhung(string text, int start, int end)
+        {
+            while (end > start && Hangs(text[end - 1])) { end--; }
+            return end;
         }
 
         /// <summary>
@@ -1123,24 +1388,33 @@ namespace UnityDirectTMP
             catch { return true; }
         }
 
-        // Where TextMeshPro would break this text, as indices into it.
-        // Always starts with 0; null when it could not be measured.
-        private int[] LineBreaksOf(string shaped)
+        // ==========================================
+        // Measuring, and putting the label back.
+        //
+        // GetTextInfo measures by SETTING the label's text
+        // and generating it. Three things follow, and all
+        // of them have to be undone:
+        //
+        //   * label.text ends up holding the string we
+        //     measured, not the one the game set. It is
+        //     put back.
+        //   * the margin is how a narrower width is asked
+        //     for, and the label is not entitled to keep
+        //     it. It is put back.
+        //   * both are serialized, so in the Editor either
+        //     would mark the scene modified for a
+        //     measurement nobody asked to save.
+        //
+        // And because generating text calls this component
+        // back as the label's preprocessor, it has to hand
+        // the string straight back while that is
+        // happening, or we measure something else again.
+        // ==========================================
+        private TMP_TextInfo Measure(string text, float slack)
         {
-            TMP_TextInfo info;
-
-            // GetTextInfo measures by SETTING the label's text and generating
-            // it. Two things follow, and both have to be undone:
-            //
-            //   * label.text ends up holding the string we measured, not the
-            //     one the game set. It is put back.
-            //   * label.text is serialized, so in the Editor that would mark
-            //     the scene modified for a measurement nobody asked to save.
-            //
-            // And because generating text calls this component back as the
-            // label's preprocessor, it has to hand the string straight back
-            // while that is happening, or we measure something else again.
             string original = _label.text;
+            Vector4 margin = _label.margin;
+            bool narrowed = slack > 0f;
 
 #if UNITY_EDITOR
             bool wasDirty = UnityEditor.EditorUtility.IsDirty(_label);
@@ -1148,7 +1422,15 @@ namespace UnityDirectTMP
             _measuring = true;
             try
             {
-                info = _label.GetTextInfo(shaped);
+                // Taken off the right. Which side the room comes off does not
+                // change how much of it there is, and the margin is the only
+                // way to ask for a width the label does not have.
+                if (narrowed)
+                {
+                    _label.margin = new Vector4(margin.x, margin.y, margin.z + slack, margin.w);
+                }
+
+                return _label.GetTextInfo(text);
             }
             catch
             {
@@ -1156,12 +1438,24 @@ namespace UnityDirectTMP
             }
             finally
             {
+                // Unconditionally, not just when it was narrowed: leaving a
+                // margin behind would move the terms the breaks are checked
+                // against, and the label would re-measure itself forever.
+                if (_label.margin != margin) { _label.margin = margin; }
                 if (_label.text != original) { _label.text = original; }
                 _measuring = false;
 #if UNITY_EDITOR
                 if (!wasDirty) { UnityEditor.EditorUtility.ClearDirty(_label); }
 #endif
             }
+        }
+
+        // Where TextMeshPro would break this text with `slack` of the width
+        // held back, as indices into it. Always starts with 0; null when it
+        // could not be measured.
+        private int[] LineBreaksOf(string shaped, float slack)
+        {
+            TMP_TextInfo info = Measure(shaped, slack);
 
             if (info == null || info.lineCount <= 1) { return null; }
 
