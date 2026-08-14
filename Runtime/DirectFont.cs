@@ -779,7 +779,13 @@ namespace UnityDirectTMP
             _seen = terms;
 
             bool moved = cutByHand && !terms.Same(_terms) && _restless < Restless;
-            bool miscut = cutByHand && !moved && _checksLeft > 0 && Miscut();
+
+            // Not while the joiner is still asking for another go. A font that
+            // is still filling its atlas gives back widths that are not the ones
+            // it will draw with, so of course the lines disagree - and spending
+            // the budget on frames like that leaves nothing for the frame the
+            // answer actually settles on.
+            bool miscut = cutByHand && !moved && _attemptsLeft <= 0 && _checksLeft > 0 && Miscut();
 
             if (!isNewText && !moved && !miscut && _attemptsLeft <= 0) { return; }
 
@@ -802,10 +808,30 @@ namespace UnityDirectTMP
             joiner?.ClearRetryWanted();
 
             bool perLine = PerLine(text);
+            int wasRetrying = _attemptsLeft;
             string shaped = perLine ? ByLine(text) : DirectTMP.Prepare(text, _asset);
 
             // Nothing was left unfinished, so there is nothing to come back for.
             if (joiner == null || !joiner.RetryWanted) { _attemptsLeft = 0; }
+
+            // ==========================================
+            // The joiner has stopped asking, so this is
+            // the first answer worked out against a font
+            // that has finished arriving. The check budget
+            // starts again HERE rather than wherever it
+            // happened to be left.
+            //
+            // In the Editor the font has been warm since
+            // the scene opened and there is nothing to
+            // wait for, so the budget was always intact by
+            // the time it mattered. On a device the atlas
+            // fills over frames, and the checks were spent
+            // disagreeing with measurements taken while it
+            // was still filling - so by the time the label
+            // settled on a wrong answer there was nothing
+            // left to catch it with.
+            // ==========================================
+            if (wasRetrying > 0 && _attemptsLeft == 0) { _checksLeft = Checks; }
 
             // The terms this answer holds for, read AFTER the measuring rather
             // than before it: measuring generates the text once, which is where
