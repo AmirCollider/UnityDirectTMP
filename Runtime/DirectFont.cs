@@ -987,6 +987,51 @@ namespace UnityDirectTMP
             return built.ToString();
         }
 
+        // ==========================================
+        // THE SPACE THAT CAUSED THE BREAK MUST NOT
+        // TRAVEL WITH THE LINE.
+        //
+        // TextMeshPro breaks a line AFTER the space, so
+        // the space belongs to the line it broke - and
+        // when it decided that line fits, IT DID NOT
+        // COUNT THAT SPACE. A trailing space hangs off
+        // the end of a line and is free.
+        //
+        // Reordering then moves it. UAX #9 rule L1 gives
+        // whitespace at the end of a line the paragraph's
+        // own direction, so in a right-to-left line it
+        // ends up at the visual left - which, in a string
+        // that is now in visual order, is character ZERO.
+        // The space is still at the end of the line as
+        // far as a reader is concerned. It is at the
+        // START of the line as far as TextMeshPro is
+        // concerned, and a LEADING space is not free.
+        //
+        // So every line came back one space wider than
+        // the width it had just been measured and
+        // approved at. The fullest lines - and a line
+        // TextMeshPro just broke is as full as it can be
+        // - went over by that one space and were wrapped
+        // a second time, shedding their last character
+        // run onto a line of its own. In visual order the
+        // last run is the FIRST word of the sentence, so
+        // the first word of a Persian line dropped to the
+        // line below it, on its own:
+        //
+        //     اومدی! برای ورود با یک
+        //     خوش
+        //
+        // Every line internally correct and one word in
+        // the wrong place - which reads as "the lines are
+        // shuffled" and was the last of it.
+        //
+        // The space is dropped instead. It is invisible
+        // at the end of a line, TextMeshPro was already
+        // drawing the line as though it were not there,
+        // and now the line is exactly as wide as the
+        // width it was measured at.
+        // ==========================================
+
         // One paragraph: shaped, broken where TextMeshPro would break it, and
         // reordered a line at a time.
         private string Paragraph(string text)
@@ -1002,15 +1047,41 @@ namespace UnityDirectTMP
 
             for (int i = 0; i < breaks.Length; i++)
             {
+                if (i > 0) { built.Append('\n'); }
+
                 int start = breaks[i];
-                int end = i + 1 < breaks.Length ? breaks[i + 1] : shaped.Length;
+                bool last = i + 1 >= breaks.Length;
+                int end = last ? shaped.Length : breaks[i + 1];
+
+                // Only where a break was made. The end of the paragraph is the
+                // author's own, and whatever they put there stays.
+                if (!last)
+                {
+                    while (end > start && Hangs(shaped[end - 1])) { end--; }
+                }
+
+                // A line of nothing but the space that ended it. It still
+                // happened, so it is still a line.
                 if (end <= start) { continue; }
 
-                if (built.Length > 0) { built.Append('\n'); }
                 built.Append(DirectTMP.Reorder(shaped.Substring(start, end - start)));
             }
 
             return built.ToString();
+        }
+
+        /// <summary>
+        /// Whitespace that hangs off the end of a line for free, and is therefore whitespace a
+        /// line can be measured as though it did not have. A no-break space is deliberately not
+        /// on the list: it is there to stop precisely this, and no line is broken after one.
+        /// </summary>
+        private static bool Hangs(char c)
+        {
+            return c == ' '
+                || c == '\t'
+                || (c >= '\u2000' && c <= '\u200A')   // EN QUAD .. HAIR SPACE
+                || c == '\u205F'                        // MEDIUM MATHEMATICAL SPACE
+                || c == '\u3000';                       // IDEOGRAPHIC SPACE
         }
 
         private bool Wraps()

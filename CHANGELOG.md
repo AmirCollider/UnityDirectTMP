@@ -5,6 +5,47 @@ All notable changes to **Unity DirectTMP** are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.13]
+
+### Fixed
+- **The first word of a wrapped Persian line dropped to the line below it, on
+  its own.** 2.1.12 fixed the half of this that was a stale measurement. This is
+  the other half, and it was never about measuring at all — the measurement was
+  right and the line was then made one space wider than the answer it had just
+  been given.
+
+  ```
+  اومدی! برای ورود با یک          خوش اومدی! برای ورود با یک
+  خوش                    ← was    اکانت دیگه، دوباره همین رو    ← is
+  اکانت دیگه، دوباره همین رو       بزن.
+  بزن.
+  ```
+
+  TextMeshPro breaks a line **after** the space, so the space belongs to the
+  line it broke — and when TextMeshPro decided that line fits, **it did not
+  count that space.** Whitespace hanging off the end of a line is free.
+
+  Reordering then moves it. UAX #9 rule L1 gives whitespace at the end of a line
+  the paragraph's own direction, so in a right-to-left line it goes to the
+  visual left — which, in a string that is now in *visual* order, is character
+  zero. Still the end of the line to a reader. The **start** of the line to
+  TextMeshPro. And a leading space is not free.
+
+  So every line came back one space wider than the width it had just been
+  measured and approved at. A line TextMeshPro has just broken is as full as a
+  line can be, so the fullest ones went over by that one space and were wrapped
+  a second time, shedding their last character run onto a line of their own. In
+  visual order the last run is the *first* word of the sentence — which is why
+  it was always the opening word of a line that fell through the floor, and why
+  every line was still internally correct while the paragraph read as shuffled.
+
+  The space that caused a break is now dropped from the line it broke. It is
+  invisible at the end of a line, TextMeshPro was already drawing the line as
+  though it were not there, and the line is now exactly as wide as the width it
+  was measured at. Only whitespace at a break this package made is dropped: the
+  end of a paragraph is the author's, and whatever they put there stays. A
+  no-break space is never dropped — stopping exactly this is what it is for.
+
 ## [2.1.12]
 
 ### Fixed
