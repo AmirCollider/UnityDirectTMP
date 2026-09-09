@@ -410,6 +410,25 @@ Unity **2021.3** 以降と **TextMeshPro**（Unity 同梱）。他の依存関�
 
 ---
 
+<a id="also"></a>
+## 🧰 Also from AmirCollider
+
+**[Unity DocSnap](https://github.com/AmirCollider/UnityDocSnap)** — your whole Unity
+project as one `ai-bundle.md` you paste into Claude, Cursor or Copilot, plus a
+self-contained offline HTML site with every Scene, every Component, every
+serialized field and a project health report. The exporter is free, with no
+time limit.
+
+Right-to-left text is why these two are siblings: DocSnap's exported site reads
+in Persian, English and Japanese, and its Editor windows use DirectTMP's shaping
+when it is installed.
+
+*DocSnap も同じ棚から。プロジェクト全体を AI に渡せる 1 つのファイルに。エクスポーター本体は無料です。*
+
+*DocSnap هم از همین قفسه — کل پروژه در یک فایل، برای هوش مصنوعی. خروجی‌گیرش رایگان است.*
+
+---
+
 <p align="center">
   <a href="https://amircollider.com/unity-directtmp">فارسی</a>
   ・
