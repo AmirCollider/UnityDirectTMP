@@ -352,7 +352,12 @@ namespace UnityDirectTMP
                 return;
             }
 
-            TMP_FontAsset asset = Build(FontFor(script));
+            // The SPECIFIC script, not the group. Rescan() resolved which of
+            // Japanese / Chinese / Korean this actually is, and FontFor()
+            // needs that to pick between three fields the group cannot tell
+            // apart. When a custom rule won the vote, _specific is None and
+            // FontFor() short-circuits on _rule before it ever looks at it.
+            TMP_FontAsset asset = Build(FontFor(_specific));
 
             // Nothing was built, so nothing is applied - and the asset this
             // label already had is kept, because a label drawn by the font it
