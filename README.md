@@ -86,11 +86,40 @@ label.font = DirectTMP.LoadFromFile(path);   // a .ttf on disk, at runtime
 | **Persian / Arabic** | Used when the text is mostly Persian, Arabic or Urdu. Empty = use **Font**. |
 | **日本語 / 中文 / 한국어** | Used when the text is mostly Japanese, Chinese or Korean. Empty = use **Font**. |
 | **English / Latin** | Used when the text is mostly English or another Latin language. Empty = use **Font**. |
+| **Кириллица** | Used when the text is mostly Russian or another Cyrillic language. Empty = use **Font**. |
+| **Emoji 😀** | Used when the text is mostly emoji — and added as a fallback ahead of everything else, so emoji render *inside* text of any other language. No text font carries colour emoji, so without this they are missing glyphs whatever else is filled in. |
+| **Split 日本語 / 中文 / 한국어** | Three optional fields, one per language, behind a foldout. Filled in, the language wins; empty, the CJK field above is used; with neither, **Font**. |
+| **Any other script** | A list you add to: a name, the Unicode ranges, and a font. For anything with no field of its own. See below. |
 | **Outline ▸ Width** | How thick an outline is drawn around this label's letters. 0 is no outline. |
 | **Outline ▸ Colour** | The colour of that outline. |
 | **Own material** | Gives this label its own material, so anything set on it stays its own. |
 | **Join Persian / Arabic** | Letter joining and right-to-left reading order. Free for text with no Arabic script. |
 | **Fix wrapped lines** | Keeps wrapped right-to-left lines in the correct order. |
+
+#### Any other script
+
+Hebrew, Thai, Devanagari, Armenian, Georgian, cuneiform — each is somebody's
+whole project, and none of them is ever going to get a field of its own. So the
+list is open. Press **Add a script** and fill in three things:
+
+| | |
+|---|---|
+| **Name** | `Cuneiform` — for your own benefit. Nothing depends on it. |
+| **Ranges** | `12000-123FF, 12400-1247F` — hex, straight off the Unicode chart |
+| **Font** | `NotoSansCuneiform-Regular.ttf` |
+
+Ranges accept the forms people actually type: `12000-123FF`, `U+12000-U+123FF`,
+`0x12000-0x12FFF`, a single codepoint on its own, and the en dash a copy-paste
+out of a Unicode PDF leaves behind. A range written backwards is swapped rather
+than refused. One typo in a list of six costs that range and not the other five,
+and the Inspector tells you which rules are live, which are being ignored, and
+why — a rule that silently matches nothing is the worst of the three outcomes.
+
+Rules are checked **before** the built-in table, so a rule can also override a
+script the package already knows about. Ties go to the built-in.
+
+Each rule's font is added as a fallback too, so a Persian sentence with one
+Hebrew word in it finds that word's letters.
 
 ### ✨ Why people keep it
 
@@ -106,8 +135,11 @@ label.font = DirectTMP.LoadFromFile(path);   // a .ttf on disk, at runtime
 - **🩺 Persian that actually reads.** Joined shapes are read from the font's own
   `GSUB` table and verified **glyph-for-glyph against HarfBuzz** — the engine
   behind Chrome, Firefox, Android and macOS — across five fonts.
-- **🧩 Everything else, free.** Japanese, Chinese, Korean, Cyrillic, Greek, Thai,
-  emoji and symbols: nothing to configure. If the font has the glyph, you get it.
+- **🧩 Everything else, free.** Japanese, Chinese, Korean, Cyrillic, Greek, Thai
+  and symbols: nothing to configure. If the font has the glyph, you get it —
+  and for the scripts a font *doesn't* cover, give them one in **Any other
+  script**. Colour **emoji** are the one case no text font ever covers, so they
+  get a field of their own.
 - **🤝 Polite.** Rich-text tags are never shaped or reordered, and `label.text`
   is never written to.
 
@@ -216,11 +248,41 @@ label.font = DirectTMP.LoadFromFile(path);   // یک .ttf روی دیسک، در
 | **Persian / Arabic** | وقتی متن بیشتر فارسی، عربی یا اردو باشد. خالی = همان **Font**. |
 | **日本語 / 中文 / 한국어** | وقتی متن بیشتر ژاپنی، چینی یا کره‌ای باشد. خالی = همان **Font**. |
 | **English / Latin** | وقتی متن بیشتر انگلیسی یا لاتین باشد. خالی = همان **Font**. |
+| **Кириллица** | وقتی متن بیشتر روسی یا سیریلیک باشد. خالی = همان **Font**. |
+| **Emoji 😀** | وقتی متن بیشتر ایموجی باشد — و جلوتر از همه به‌عنوان فالبک هم اضافه می‌شود، تا ایموجی *داخل* متن هر زبان دیگری هم نمایش داده شود. هیچ فونت متنی ایموجی رنگی ندارد، پس بدون این فیلد هر چیز دیگری هم پر باشد باز گلیف کم می‌آید. |
+| **تفکیک 日本語 / 中文 / 한국어** | سه فیلد اختیاری، یکی برای هر زبان، زیر یک فولدآوت. پر باشد همان زبان برنده است؛ خالی باشد فیلد CJK بالا؛ هیچ‌کدام نباشد **Font**. |
+| **هر خط دیگر** | یک لیست که خودت به آن اضافه می‌کنی: یک نام، بازه‌های یونیکد، و یک فونت. برای هر چیزی که فیلد مخصوص خودش را ندارد. پایین‌تر توضیح داده شده. |
 | **Outline ▸ Width** | ضخامت OutLine دور حروف همین لیبل. صفر یعنی بدون OutLine. |
 | **Outline ▸ Colour** | رنگ همان OutLine. |
 | **Own material** | متریال مخصوص همین لیبل، تا هرچه رویش تنظیم شود مال خودش بماند. |
 | **Join Persian / Arabic** | چسبیدن حروف و ترتیب راست‌به‌چپ. برای متن بدون خط عربی هیچ هزینه‌ای ندارد. |
 | **Fix wrapped lines** | ترتیب درست خط‌های شکسته‌شده در متن راست‌به‌چپ. |
+
+#### هر خط دیگر
+
+عبری، تایلندی، دواناگری، ارمنی، گرجی، خط میخی — هرکدام برای یک نفر کلِ پروژه‌اش
+است، و قرار نیست هیچ‌کدام فیلد مخصوص خودش را بگیرد. پس لیست باز است. دکمه‌ی
+**Add a script** را بزن و سه چیز را پر کن:
+
+| | |
+|---|---|
+| **Name** | `Cuneiform` — فقط برای خودت. هیچ‌چیزی به آن وابسته نیست. |
+| **Ranges** | `12000-123FF, 12400-1247F` — هگز، مستقیم از روی جدول یونیکد |
+| **Font** | `NotoSansCuneiform-Regular.ttf` |
+
+بازه‌ها همان شکل‌هایی را که آدم واقعاً تایپ می‌کند قبول می‌کنند:
+`12000-123FF`، `U+12000-U+123FF`، `0x12000-0x12FFF`، یک کدپوینت تنها، و همان
+خط تیره‌ی بلندی که از کپی‌پیست PDF یونیکد جا می‌ماند. بازه‌ای که برعکس نوشته شده
+جابه‌جا می‌شود نه اینکه رد شود. یک غلط تایپی در فهرستی شش‌تایی فقط همان یک بازه
+را می‌برد نه پنج تای دیگر را، و اینسپکتور می‌گوید کدام قانون فعال است، کدام
+نادیده گرفته می‌شود و چرا — قانونی که بی‌صدا به هیچ‌چیز نمی‌خورد بدترین حالت از
+این سه است.
+
+قانون‌ها **قبل از** جدول داخلی بررسی می‌شوند، پس یک قانون می‌تواند خطی را که
+پکیج از قبل می‌شناسد هم بازنویسی کند. در تساوی، جدول داخلی برنده است.
+
+فونت هر قانون به‌عنوان فالبک هم اضافه می‌شود، تا یک جمله‌ی فارسی که یک کلمه‌ی
+عبری داخلش دارد حروف آن کلمه را پیدا کند.
 
 ### ✨ چرا نگهش می‌دارند
 
@@ -237,8 +299,10 @@ label.font = DirectTMP.LoadFromFile(path);   // یک .ttf روی دیسک، در
 - **🩺 فارسیِ واقعاً خوانا.** شکل‌های چسبیده از جدول `GSUB` خودِ فونت خوانده می‌شود
   و خروجی **گلیف‌به‌گلیف با HarfBuzz** — موتور پشت کروم، فایرفاکس، اندروید و
   مک‌اواس — روی پنج فونت تست شده است.
-- **🧩 بقیه‌اش مجانی.** ژاپنی، چینی، کره‌ای، سیریلیک، یونانی، تایلندی، ایموجی و
-  نمادها: هیچ تنظیمی ندارند. اگر فونت گلیف را داشته باشد، شما هم دارید.
+- **🧩 بقیه‌اش مجانی.** ژاپنی، چینی، کره‌ای، سیریلیک، یونانی، تایلندی و نمادها:
+  هیچ تنظیمی ندارند. اگر فونت گلیف را داشته باشد، شما هم دارید — و برای خط‌هایی
+  که فونت پوشش نمی‌دهد، از **هر خط دیگر** برایشان فونت بگذارید. **ایموجی** رنگی
+  تنها چیزی است که هیچ فونت متنی ندارد، برای همین فیلد جدا دارد.
 - **🤝 مؤدب.** تگ‌های Rich Text هرگز شکل‌دهی یا جابه‌جا نمی‌شوند و چیزی در
   `label.text` نوشته نمی‌شود.
 
@@ -338,11 +402,41 @@ label.font = DirectTMP.LoadFromFile(path);   // ランタイムに .ttf を直�
 | **Persian / Arabic** | テキストが主にペルシャ語・アラビア語・ウルドゥー語のとき使用。空欄なら **Font**。 |
 | **日本語 / 中文 / 한국어** | テキストが主に日本語・中国語・韓国語のとき使用。空欄なら **Font**。 |
 | **English / Latin** | テキストが主に英語などラテン文字のとき使用。空欄なら **Font**。 |
+| **Кириллица** | テキストが主にロシア語などキリル文字のとき使用。空欄なら **Font**。 |
+| **Emoji 😀** | テキストが主に絵文字のとき使用。さらに最優先のフォールバックとして追加されるため、他言語の文中の絵文字も表示されます。カラー絵文字を収録したテキストフォントは存在しないので、この欄がないと他をいくら埋めてもグリフが足りません。 |
+| **日本語 / 中文 / 한국어 の分割** | 言語ごとの任意欄が 3 つ、折りたたみの中にあります。指定があればその言語が優先、空欄なら上の CJK 欄、どちらもなければ **Font**。 |
+| **その他の文字体系** | 自分で追加できる一覧です。名前・Unicode 範囲・フォントの 3 つ。専用欄のないものはすべてこちらへ。下記参照。 |
 | **Outline ▸ Width** | このラベルの文字に描くアウトラインの太さ。0 でアウトラインなし。 |
 | **Outline ▸ Colour** | そのアウトラインの色。 |
 | **Own material** | このラベル専用のマテリアルを与え、設定を他へ波及させません。 |
 | **Join Persian / Arabic** | 文字の連結と右から左への語順。アラビア文字を含まないテキストでは無コストです。 |
 | **Fix wrapped lines** | 折り返された右から左のテキストの行順を正しく保ちます。 |
+
+#### その他の文字体系
+
+ヘブライ文字、タイ文字、デーヴァナーガリー、アルメニア文字、グルジア文字、楔形
+文字 — どれも誰かにとってはプロジェクトそのものであり、そのすべてに専用欄を用意
+することはできません。そこで一覧を開放しています。**Add a script** を押して 3 つ
+を入力してください。
+
+| | |
+|---|---|
+| **Name** | `Cuneiform` — ご自身のための名前です。動作には影響しません。 |
+| **Ranges** | `12000-123FF, 12400-1247F` — Unicode チャートの 16 進表記そのまま |
+| **Font** | `NotoSansCuneiform-Regular.ttf` |
+
+範囲は実際に入力される形式をそのまま受け付けます。`12000-123FF`、
+`U+12000-U+123FF`、`0x12000-0x12FFF`、単一のコードポイント、そして Unicode の PDF
+からコピーしたときに紛れ込む全角ダッシュも同様です。逆順に書かれた範囲は拒否せず
+入れ替えます。6 個のうち 1 個に打ち間違いがあっても、失われるのはその 1 個だけで
+残りは有効です。どのルールが有効で、どれが無視され、それはなぜかをインスペクター
+が表示します — 何にも一致しないまま黙っているルールが、3 つの結果のうち最悪です。
+
+ルールは内蔵テーブルより**先に**参照されるため、パッケージが既に知っている文字体系
+を上書きすることもできます。同数の場合は内蔵側が優先されます。
+
+各ルールのフォントはフォールバックにも追加されるので、ペルシャ語の文中にヘブライ
+語の単語が 1 つあっても、その文字が見つかります。
 
 ### ✨ 選ばれている理由
 
@@ -360,7 +454,9 @@ label.font = DirectTMP.LoadFromFile(path);   // ランタイムに .ttf を直�
   Chrome・Firefox・Android・macOS を支えるシェーピングエンジン **HarfBuzz と
   グリフ単位で照合**して 5 書体で検証済みです。
 - **🧩 それ以外も設定不要。** 日本語・中国語・韓国語・キリル文字・ギリシャ文字・
-  タイ語・絵文字・記号。フォントにグリフがあれば、そのまま出ます。
+  タイ語・記号。フォントにグリフがあれば、そのまま出ます。フォントが収録していない
+  文字体系には**その他の文字体系**でフォントを与えてください。カラー**絵文字**だけは
+  どのテキストフォントにも入っていないため、専用の欄があります。
 - **🤝 行儀がよい。** リッチテキストタグを整形・並べ替えすることはなく、
   `label.text` に書き込むこともありません。
 

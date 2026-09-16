@@ -86,11 +86,64 @@ namespace UnityDirectTMP
         [Tooltip("Used when the text is mostly Persian, Arabic or Urdu. Empty = use Font.")]
         [SerializeField] private Font persianArabic;
 
-        [Tooltip("Used when the text is mostly Japanese, Chinese or Korean. Empty = use Font.")]
+        [Tooltip("Used when the text is mostly Japanese, Chinese or Korean. Empty = use Font. "
+               + "Fill in the three below instead if those languages need different faces.")]
         [SerializeField] private Font japaneseChineseKorean;
 
         [Tooltip("Used when the text is mostly English or another Latin language. Empty = use Font.")]
         [SerializeField] private Font latin;
+
+        [Tooltip("Used when the text is mostly emoji, and added as a fallback so emoji inside "
+               + "text of any other language render too. No text font carries colour emoji, "
+               + "so without this they are missing glyphs whatever else is filled in.")]
+        [SerializeField] private Font emoji;
+
+        // ==========================================
+        // The three CJK languages, separately.
+        //
+        // One CJK font usually sets all three, which is why
+        // japaneseChineseKorean exists and why it stays. But
+        // "usually" is not "always": a Japanese face and a
+        // Simplified Chinese face draw the same ideograph with
+        // visibly different strokes, and a Japanese reader can
+        // tell when their text was set in a Chinese font. Korean
+        // needs hangul that plenty of Japanese faces do not have
+        // at all.
+        //
+        // So these are a finer override of the group above, not a
+        // replacement for it: filled in, the language wins; empty,
+        // the group font is used; and with neither, Font. Nobody
+        // who was happy with one CJK font has to do anything.
+        // ==========================================
+        [Tooltip("Japanese specifically. Empty = use the Japanese/Chinese/Korean font, then Font.")]
+        [SerializeField] private Font japanese;
+
+        [Tooltip("Chinese specifically. Empty = use the Japanese/Chinese/Korean font, then Font.")]
+        [SerializeField] private Font chinese;
+
+        [Tooltip("Korean specifically. Empty = use the Japanese/Chinese/Korean font, then Font.")]
+        [SerializeField] private Font korean;
+
+        [Tooltip("Used when the text is mostly Russian or another Cyrillic language. Empty = use Font.")]
+        [SerializeField] private Font cyrillic;
+
+        // ==========================================
+        // Every other script, as a list.
+        //
+        // The fields above are the scripts this package has an
+        // opinion about, and that list can never be complete.
+        // Hebrew, Thai, Devanagari, Armenian, Georgian, cuneiform
+        // - each is somebody's whole project, and none of them is
+        // going to get a field of its own.
+        //
+        // A rule is a name, some Unicode ranges and a font, so a
+        // script the package has never heard of takes a minute
+        // rather than a pull request. See DirectFontRule.
+        // ==========================================
+        [Header("Any other script — add as many as you need")]
+        [Tooltip("Hebrew, Thai, Devanagari, cuneiform - anything with no field above. "
+               + "Give each one the Unicode ranges from the chart and a font.")]
+        [SerializeField] private List<DirectFontRule> scripts = new List<DirectFontRule>();
 
         [Header("Outline — this label only")]
         [Tooltip("Thickness of the outline drawn around this label's letters. 0 is no outline. "
@@ -117,7 +170,39 @@ namespace UnityDirectTMP
         private TMP_Text _label;
         private TMP_FontAsset _asset;
         private DirectScript _script = DirectScript.None;
+        private DirectScript _specific = DirectScript.None;
         private DirectScript _applied = DirectScript.None;
+
+        // The custom rule that won the vote, and the one whose font is on the
+        // label right now. Compared by reference: two rules with the same name
+        // and ranges are still two rules, and the list is what decides which.
+        private DirectFontRule _rule;
+        private DirectFontRule _appliedRule;
+
+        // Vote counters, kept as fields so a text change allocates nothing.
+        // See the note on Rescan.
+        private int[] _votes;
+        private int[] _ruleVotes;
+
+        // One slot per DirectScript value, indexed by the enum. A literal
+        // rather than Enum.GetValues(), which allocates an array per call -
+        // and this is sized once at startup on a path that must not.
+        private const int ScriptSlots = 10;
+
+        // The order ties are broken in. Arabic first because it is the script
+        // this package exists for and the one whose text is unreadable in the
+        // wrong font; Latin last because Latin in a CJK face is merely ugly.
+        // Static readonly, so it is built once for every label in the scene.
+        private static readonly DirectScript[] PrecedenceOrder =
+        {
+            DirectScript.Arabic,
+            DirectScript.Japanese,
+            DirectScript.Korean,
+            DirectScript.Chinese,
+            DirectScript.Cyrillic,
+            DirectScript.Emoji,
+            DirectScript.Latin
+        };
 
         private string _scanned;
         private string _sourceText;
@@ -251,12 +336,16 @@ namespace UnityDirectTMP
             if (force || !ReferenceEquals(_scanned, text))
             {
                 _scanned = text;
-                _script = DirectScripts.DominantOf(text);
+                Rescan(text);
             }
 
-            DirectScript script = _script;
-
-            if (!force && !_rebuild && script == _applied && _asset != null && _label.font == _asset)
+            // The SPECIFIC script and the winning custom rule are what choose
+            // the font, so they are what the cache has to compare. Comparing
+            // the group would miss a label going from Japanese to Korean, and
+            // ignoring the rule would miss one going from Hebrew to cuneiform:
+            // in both cases the font must change and the group did not.
+            if (!force && !_rebuild && _specific == _applied && ReferenceEquals(_rule, _appliedRule)
+                && _asset != null && _label.font == _asset)
             {
                 Style();
                 Reshape(text);
@@ -270,7 +359,8 @@ namespace UnityDirectTMP
             // had a moment ago is better than a label drawn by nothing.
             if (asset == null) { return; }
 
-            _applied = script;
+            _applied = _specific;
+            _appliedRule = _rule;
             _rebuild = false;
 
             if (_label.font != asset)
@@ -294,14 +384,151 @@ namespace UnityDirectTMP
             Reshape(text);
         }
 
+        // ==========================================
+        // Rescan
+        // One pass over the text, counting every script that
+        // could choose a font - the built-in ones and each
+        // custom rule.
+        //
+        // Done here rather than by calling DominantSpecificOf
+        // because the custom rules have to compete in the SAME
+        // vote: running the built-in vote first and then asking
+        // the rules would mean a rule could only ever win when
+        // the built-ins found nothing, and a rule written to
+        // override one of them would silently do nothing.
+        //
+        // Allocation-free on purpose. This runs on every text
+        // change of every label, so the vote counters are fields
+        // rather than locals and the walk uses CodepointAt
+        // rather than a callback. See the note on CodepointAt in
+        // DirectScript.cs.
+        //
+        // Ties go to the built-in script. Somebody whose rule
+        // overlaps Latin and who types one letter of each should
+        // get the behaviour they had before they added the rule.
+        // ==========================================
+        private void Rescan(string text)
+        {
+            _specific = DirectScript.None;
+            _script = DirectScript.None;
+            _rule = null;
+
+            if (string.IsNullOrEmpty(text)) { return; }
+
+            if (_votes == null) { _votes = new int[ScriptSlots]; }
+            for (int i = 0; i < _votes.Length; i++) { _votes[i] = 0; }
+
+            int ruleCount = scripts == null ? 0 : scripts.Count;
+            if (ruleCount > 0 && (_ruleVotes == null || _ruleVotes.Length < ruleCount))
+            {
+                _ruleVotes = new int[ruleCount];
+            }
+            for (int i = 0; i < ruleCount; i++) { _ruleVotes[i] = 0; }
+
+            for (int i = 0; i < text.Length; )
+            {
+                int u = DirectScripts.CodepointAt(text, ref i);
+
+                // A rule is asked first, so a rule can cover a codepoint the
+                // built-in table already classifies - which is the whole point
+                // of being able to add one. First matching rule wins, so two
+                // overlapping rules resolve by their order in the list rather
+                // than by which was edited last.
+                int claimed = -1;
+                for (int r = 0; r < ruleCount; r++)
+                {
+                    DirectFontRule rule = scripts[r];
+                    if (rule != null && rule.IsUsable && rule.Matches(u)) { claimed = r; break; }
+                }
+
+                if (claimed >= 0) { _ruleVotes[claimed]++; continue; }
+
+                DirectScript found = DirectScripts.SpecificOf(u);
+                if (found != DirectScript.None) { _votes[(int)found]++; }
+            }
+
+            int best = 0;
+            DirectScript winner = DirectScript.None;
+
+            // The same fixed precedence DominantSpecificOf uses, for the same
+            // reason: which font a label ends up with must not depend on the
+            // order of comparisons in a source file.
+            for (int i = 0; i < PrecedenceOrder.Length; i++)
+            {
+                DirectScript candidate = PrecedenceOrder[i];
+                if (_votes[(int)candidate] > best)
+                {
+                    best = _votes[(int)candidate];
+                    winner = candidate;
+                }
+            }
+            if (_votes[(int)DirectScript.Other] > best)
+            {
+                best = _votes[(int)DirectScript.Other];
+                winner = DirectScript.Other;
+            }
+
+            for (int r = 0; r < ruleCount; r++)
+            {
+                if (_ruleVotes[r] > best)
+                {
+                    best = _ruleVotes[r];
+                    winner = DirectScript.None;
+                    _rule = scripts[r];
+                }
+            }
+
+            _specific = _rule != null ? DirectScript.None : winner;
+            _script = DirectScripts.Group(_specific);
+        }
+
+        // ==========================================
+        // FontFor
+        // Specific, then group, then the one font everything
+        // falls back to.
+        //
+        // Every step is "if somebody filled this in, use it",
+        // which is what makes every field optional and makes a
+        // component with only Font set behave exactly as it did
+        // before any of these existed.
+        // ==========================================
         private Font FontFor(DirectScript script)
         {
+            if (_rule != null && _rule.font != null) { return _rule.font; }
+
             switch (script)
             {
-                case DirectScript.Arabic: return persianArabic != null ? persianArabic : font;
-                case DirectScript.Cjk: return japaneseChineseKorean != null ? japaneseChineseKorean : font;
-                case DirectScript.Latin: return latin != null ? latin : font;
-                default: return font;
+                case DirectScript.Arabic:
+                    return persianArabic != null ? persianArabic : font;
+
+                case DirectScript.Emoji:
+                    return emoji != null ? emoji : font;
+
+                case DirectScript.Cyrillic:
+                    return cyrillic != null ? cyrillic : font;
+
+                case DirectScript.Japanese:
+                    if (japanese != null) { return japanese; }
+                    return japaneseChineseKorean != null ? japaneseChineseKorean : font;
+
+                case DirectScript.Chinese:
+                    if (chinese != null) { return chinese; }
+                    return japaneseChineseKorean != null ? japaneseChineseKorean : font;
+
+                case DirectScript.Korean:
+                    if (korean != null) { return korean; }
+                    return japaneseChineseKorean != null ? japaneseChineseKorean : font;
+
+                // Still reachable: DominantOf() returns the group, and a caller
+                // outside this file may hand one in.
+                case DirectScript.Cjk:
+                    return japaneseChineseKorean != null ? japaneseChineseKorean : font;
+
+                case DirectScript.Latin:
+                    return latin != null ? latin : font;
+
+                default:
+                    return font;
             }
         }
 
@@ -317,10 +544,32 @@ namespace UnityDirectTMP
                 asset.fallbackFontAssetTable = new List<TMP_FontAsset>();
             }
 
+            // Emoji first. TMP walks this list in order looking for a glyph,
+            // and emoji are the one thing here that NO text font carries - so
+            // asking three text faces for a grinning face before the emoji
+            // font is three lookups that can only fail. Every other entry is
+            // a face that might legitimately answer.
+            AddFallback(asset, emoji);
+
             AddFallback(asset, font);
             AddFallback(asset, persianArabic);
+            AddFallback(asset, japanese);
+            AddFallback(asset, chinese);
+            AddFallback(asset, korean);
             AddFallback(asset, japaneseChineseKorean);
+            AddFallback(asset, cyrillic);
             AddFallback(asset, latin);
+
+            // The user's own scripts, in the order they listed them. Added as
+            // fallbacks and not only as a dominant choice, for the same reason
+            // the language fonts are: a Persian sentence with one Hebrew word
+            // in it should find that word's letters.
+            if (scripts == null) { return; }
+            for (int i = 0; i < scripts.Count; i++)
+            {
+                DirectFontRule rule = scripts[i];
+                if (rule != null && rule.font != null) { AddFallback(asset, rule.font); }
+            }
         }
 
         private static void AddFallback(TMP_FontAsset asset, Font file)

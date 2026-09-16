@@ -5,6 +5,83 @@ All notable changes to **Unity DirectTMP** are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.14]
+
+### Added
+- **A font field for emoji.** No text font carries colour emoji, so a label that
+  mixed them with words was always going to come up short a glyph however many
+  language fonts were filled in. `Emoji` is used when the text is mostly emoji,
+  and — the part that matters more — it is added as a fallback ahead of every
+  other font, so emoji render *inside* a Persian or Japanese sentence.
+
+- **Japanese, Chinese and Korean can now have separate fonts.** One CJK font
+  usually sets all three, and the existing `日本語 / 中文 / 한국어` field still
+  does exactly that. But "usually" is not "always": a Japanese face and a
+  Simplified Chinese face draw the same ideograph with visibly different
+  strokes, and plenty of Japanese fonts carry no hangul at all. The three new
+  fields are a finer override — filled in, the language wins; empty, the group
+  font is used; with neither, `Font`. Nothing changes for anyone happy with one
+  CJK font.
+
+  Telling the three apart is done by what is actually in the text rather than by
+  guessing: kana is Japanese, hangul is Korean, and Han on its own is Chinese.
+  Japanese always carries kana, so a Japanese sentence out-votes its own kanji
+  and lands on Japanese.
+
+- **Any other script, as a list you add to.** Hebrew, Thai, Devanagari,
+  Armenian, Georgian, cuneiform — each is somebody's whole project and none of
+  them was ever going to get a field of its own. A rule is a name, the Unicode
+  ranges from the chart, and a font:
+
+  ```
+  Name    Cuneiform
+  Ranges  12000-123FF, 12400-1247F
+  Font    NotoSansCuneiform-Regular.ttf
+  ```
+
+  Ranges accept the forms people actually type — `12000-123FF`, `U+12000-U+123FF`,
+  `0x12000-0x12FFF`, a single codepoint on its own, and the en dash that a
+  copy-paste out of a Unicode PDF produces. A reversed range is swapped rather
+  than dropped. One typo in a list of six costs that range and not the other
+  five, and the Inspector says which rules are live, which are ignored and why —
+  a rule that silently matches nothing is the worst of the three outcomes.
+
+  Rules are consulted before the built-in table, so a rule can also override a
+  script the package already knows. Ties go to the built-in.
+
+- **A Cyrillic font field**, for symmetry with the others. It was already
+  detected; there was just nowhere to put a font for it.
+
+### Fixed
+- **Emoji, and every other astral character, were invisible to script
+  detection.** `DirectScripts` classified a `char`, and a `char` is a UTF-16
+  code *unit*. Every emoji worth the name lives above U+FFFF, so 😀 arrived as
+  two lone surrogates, neither of which is a letter — both scored "no script".
+  A label of pure emoji therefore reported having no writing system at all, and
+  the Inspector's "Writing systems" line said so.
+
+  Nothing crashed and nothing was logged, which is why it survived thirteen
+  releases. It is also why an emoji font field could not have been built on top
+  of the old code: there was nothing there for it to win.
+
+  Detection now walks codepoints rather than code units, so emoji, cuneiform,
+  the CJK extension blocks beyond the BMP and every other astral script are
+  counted. The walk is still allocation-free — it runs on every text change of
+  every label, and the version it replaced allocated nothing.
+
+  Variation selectors (U+FE0F), zero-width joiners (U+200D) and the keycap
+  digits deliberately do **not** count as emoji: they are how emoji sequences
+  are built, they are invisible on their own, and counting them would let a
+  phone number pick the emoji font.
+
+### Unchanged
+- `DirectScripts.DominantOf` and `DirectFont.Script` still return the broad
+  group — `Cjk`, not `Japanese` — so anything written against 2.1.13 keeps
+  meaning what it meant. The specific answer is a new method,
+  `DominantSpecificOf`, and new enum values with values of their own.
+- Every new field is optional. A component with only `Font` set behaves exactly
+  as it did before any of this existed.
+
 ## [2.1.13]
 
 ### Fixed
