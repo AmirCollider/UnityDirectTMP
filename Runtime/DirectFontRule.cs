@@ -63,6 +63,12 @@ namespace UnityDirectTMP
                + "of any other script.")]
         public Font font;
 
+        [Tooltip("Use this font for EVERY character it actually has a glyph for, read from "
+               + "the font's own cmap table. The ranges above are ignored. "
+               + "Turn this on when you do not know the ranges, or when the font is the "
+               + "authority on what it covers - which it always is.")]
+        public bool wholeFont;
+
         // The parsed form: pairs, flattened, [lo0, hi0, lo1, hi1, ...].
         // Rebuilt only when the string it came from changes, because this is
         // consulted once per codepoint of every label that changes text and
@@ -71,14 +77,73 @@ namespace UnityDirectTMP
         [NonSerialized] private string _parsedFrom;
         [NonSerialized] private bool _parsedOk;
 
-        /// <summary>True when this rule has a font and at least one usable range.</summary>
+        // The font's own coverage, read from its cmap the first time it is
+        // asked for and kept until the font reference changes. Parsing is a
+        // few hundred microseconds on a real font and this is consulted once
+        // per codepoint of every label that changes text, so it is cached
+        // rather than re-read - and keyed on the Font, so swapping the field
+        // re-reads rather than answering for the old one.
+        [NonSerialized] private int[] _coverage;
+        [NonSerialized] private Font _coverageFor;
+        [NonSerialized] private bool _coverageRead;
+
+        /// <summary>
+        /// What the font file says it covers, as flattened [lo, hi] pairs.
+        /// Empty when there is no font, or when its cmap could not be read.
+        /// </summary>
+        public int[] Coverage()
+        {
+            if (_coverageRead && ReferenceEquals(_coverageFor, font) && _coverage != null)
+            {
+                return _coverage;
+            }
+
+            _coverageFor = font;
+            _coverageRead = true;
+            _coverage = font == null
+                ? new int[0]
+                : DirectFontCoverage.Ranges(DirectFontBytes.For(font));
+
+            return _coverage;
+        }
+
+        /// <summary>Forget the cached coverage, so the next question re-reads the font.</summary>
+        public void InvalidateCoverage() { _coverageRead = false; _coverage = null; _coverageFor = null; }
+
+        /// <summary>True when this rule has a font and something to match against.</summary>
         public bool IsUsable
         {
             get
             {
+                if (font == null) { return false; }
+                if (wholeFont) { return Coverage().Length > 0; }
+
                 Parse();
-                return font != null && _parsedOk && _parsed.Length > 0;
+                return _parsedOk && _parsed.Length > 0;
             }
+        }
+
+        // ==========================================
+        // Claims
+        // Whether this rule takes a codepoint - the question
+        // DirectFont actually asks.
+        //
+        // Matches() stays the pure range test, so it can be
+        // tested without Unity and so "what did I type in the
+        // Ranges box" remains answerable on its own. This is the
+        // one that knows about whole-font mode.
+        // ==========================================
+        public bool Claims(int codepoint)
+        {
+            if (font == null) { return false; }
+            if (!wholeFont) { return Matches(codepoint); }
+
+            int[] cover = Coverage();
+            for (int i = 0; i + 1 < cover.Length; i += 2)
+            {
+                if (codepoint >= cover[i] && codepoint <= cover[i + 1]) { return true; }
+            }
+            return false;
         }
 
         /// <summary>
@@ -89,6 +154,8 @@ namespace UnityDirectTMP
         {
             get
             {
+                if (wholeFont) { return false; }
+
                 Parse();
                 return !string.IsNullOrEmpty(ranges) && !string.IsNullOrEmpty(ranges.Trim())
                     && (!_parsedOk || _parsed.Length == 0);

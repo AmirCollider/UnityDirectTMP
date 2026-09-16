@@ -294,6 +294,66 @@ namespace UnityDirectTMP.Tests
             Assert.IsFalse(rule.IsUsable);
         }
 
+        // ------------------------------------------------------
+        // Reading what a font actually covers.
+        //
+        // These take no font asset: DirectFontCoverage parses
+        // bytes, which is the whole reason it is separate from
+        // anything Unity. A test with a real .ttf belongs in the
+        // project that has one.
+        // ------------------------------------------------------
+
+        [Test]
+        public void UnreadableBytesCoverNothingRatherThanThrowing()
+        {
+            // A truncated download, a .otf with CFF outlines, a file that is
+            // not a font at all - all of them reach this, and none of them is
+            // worth an exception in the middle of a scene loading.
+            Assert.AreEqual(0, DirectFontCoverage.Ranges(null).Length);
+            Assert.AreEqual(0, DirectFontCoverage.Ranges(new byte[0]).Length);
+            Assert.AreEqual(0, DirectFontCoverage.Ranges(new byte[] { 1, 2, 3 }).Length);
+
+            byte[] junk = new byte[4096];
+            new System.Random(1).NextBytes(junk);
+            Assert.DoesNotThrow(() => DirectFontCoverage.Ranges(junk));
+        }
+
+        [Test]
+        public void CoverageIsCountedAndFormattedTheWayTheRangesBoxExpects()
+        {
+            int[] ranges = { 0x0000, 0x00FF, 0x2010, 0x2010 };
+
+            Assert.AreEqual(257, DirectFontCoverage.Count(ranges));
+
+            // A single codepoint prints as itself, not as "2010-2010", so the
+            // string can be pasted straight back into the Ranges field.
+            Assert.AreEqual("0000-00FF, 2010", DirectFontCoverage.Describe(ranges));
+        }
+
+        [Test]
+        public void AWholeFontRuleIgnoresItsRanges()
+        {
+            // With no font there is nothing to read, so the rule claims
+            // nothing - the important part being that it does not fall back
+            // to the ranges and quietly claim the wrong thing.
+            DirectFontRule rule = new DirectFontRule { ranges = "12000-123FF", wholeFont = true };
+
+            Assert.IsFalse(rule.IsUsable, "no font, so nothing to read coverage from");
+            Assert.IsFalse(rule.Claims(0x12100), "the ranges must not be consulted in whole-font mode");
+
+            // Matches() is still the pure range test, whatever the mode.
+            Assert.IsTrue(rule.Matches(0x12100));
+        }
+
+        [Test]
+        public void AWholeFontRuleDoesNotReportRangeTypos()
+        {
+            // The ranges are ignored, so complaining about them would send
+            // somebody to fix a field that is not in use.
+            DirectFontRule rule = new DirectFontRule { ranges = "not hex at all", wholeFont = true };
+            Assert.IsFalse(rule.HasUnreadableRanges);
+        }
+
         [Test]
         public void EditingTheRangesReparsesThem()
         {

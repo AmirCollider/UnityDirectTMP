@@ -52,6 +52,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A Cyrillic font field**, for symmetry with the others. It was already
   detected; there was just nowhere to put a font for it.
 
+- **"Whole font" — a rule with no ranges at all.** Turn it on and the font is
+  used for *every* character it actually has a glyph for, read from the font's
+  own `cmap` table. No Unicode chart, no typing, and no second copy of a fact
+  the font already contains.
+
+  Ranges are still there and still work; the box is disabled rather than hidden
+  while the toggle is on, so turning it back off gives you what you typed.
+
+- **The Inspector reads what a font really covers**, and says so under each
+  rule: how many codepoints, and which ranges. There is a **Copy to Ranges**
+  button that fills the box with them.
+
+  This exists because of a support question that could not be answered from the
+  Inspector at all. A cuneiform rule with correct ranges, a font in the slot,
+  a healthy green "in use: 3 ranges, 1,216 codepoints" — and nothing on screen
+  but empty boxes. The ranges were right. The **font** was the problem: a 2012
+  Fontographer file with the cuneiform drawn onto ASCII slots, covering
+  `0020-007E` and carrying no glyph anywhere near `U+12000`. Every surface in
+  Unity — the font preview, the importer, the rule's own status line — looked
+  correct.
+
+  That shape of font is common for unusual scripts, and nothing in a range list
+  can detect it. When a font has no glyph in any range its rule asks for, the
+  Inspector now leads with that, shows the ranges the font *does* have, and
+  says what to do about it.
+
+  `DirectFontCoverage` parses formats 4, 12, 6 and 0, merges the subtables, and
+  returns "covers nothing" for anything it cannot read — a truncated download,
+  a CFF `.otf`, a file that is not a font. It never throws: this parses
+  something somebody dropped into a field.
+
 ### Fixed
 - **Emoji, and every other astral character, were invisible to script
   detection.** `DirectScripts` classified a `char`, and a `char` is a UTF-16

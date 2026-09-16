@@ -443,7 +443,7 @@ namespace UnityDirectTMP
                 for (int r = 0; r < ruleCount; r++)
                 {
                     DirectFontRule rule = scripts[r];
-                    if (rule != null && rule.IsUsable && rule.Matches(u)) { claimed = r; break; }
+                    if (rule != null && rule.IsUsable && rule.Claims(u)) { claimed = r; break; }
                 }
 
                 if (claimed >= 0) { _ruleVotes[claimed]++; continue; }

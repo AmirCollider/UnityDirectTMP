@@ -75,15 +75,36 @@ namespace UnityDirectTMP.EditorTools
                     }
                     EditorGUILayout.EndHorizontal();
 
-                    EditorGUILayout.PropertyField(ranges,
-                        new GUIContent("Ranges",
-                            "Hex, from the Unicode chart. 'from-to' for a range, or one codepoint "
-                            + "on its own. Comma or space between them. Example, cuneiform: "
-                            + "12000-123FF, 12400-1247F"));
+                    SerializedProperty whole = entry.FindPropertyRelative("wholeFont");
+
                     EditorGUILayout.PropertyField(ruleFont,
                         new GUIContent("Font", "The .ttf or .otf for this script."));
 
-                    DrawRuleStatus(ranges.stringValue, ruleFont.objectReferenceValue != null);
+                    EditorGUILayout.PropertyField(whole,
+                        new GUIContent("Whole font",
+                            "Use this font for every character it actually has a glyph for, read "
+                            + "from the font's own table. The Ranges box below is then ignored."));
+
+                    // Ranges are still drawn when whole-font mode is on, but
+                    // disabled rather than hidden: a box that vanishes takes
+                    // what somebody typed with it, and they need to see it is
+                    // still there when they turn the toggle back off.
+                    using (new EditorGUI.DisabledScope(whole.boolValue))
+                    {
+                        EditorGUILayout.PropertyField(ranges,
+                            new GUIContent("Ranges",
+                                "Hex, from the Unicode chart. 'from-to' for a range, or one codepoint "
+                                + "on its own. Comma or space between them. Example, cuneiform: "
+                                + "12000-123FF, 12400-1247F"));
+                    }
+
+                    DrawFontCoverage(entry, ranges, whole,
+                        ruleFont.objectReferenceValue as Font);
+
+                    if (!whole.boolValue)
+                    {
+                        DrawRuleStatus(ranges.stringValue, ruleFont.objectReferenceValue != null);
+                    }
 
                     EditorGUILayout.EndVertical();
                 }
@@ -99,8 +120,114 @@ namespace UnityDirectTMP.EditorTools
                     added.FindPropertyRelative("name").stringValue = "";
                     added.FindPropertyRelative("ranges").stringValue = "";
                     added.FindPropertyRelative("font").objectReferenceValue = null;
+                    added.FindPropertyRelative("wholeFont").boolValue = false;
                 }
             }
+        }
+
+        // ==========================================
+        // DrawFontCoverage
+        // What the font ITSELF says it covers, and a button to
+        // put that in the Ranges box.
+        //
+        // This exists because of one support question that could
+        // not be answered from the Inspector: a cuneiform rule
+        // with correct ranges, a font called "Persian old" in the
+        // font slot, a green "in use: 3 ranges, 1,216 codepoints"
+        // status - and nothing but empty boxes on screen.
+        //
+        // The ranges were right. The FONT was the problem: it was
+        // a 2012 Fontographer file with the cuneiform drawn onto
+        // ASCII slots, so it covered U+0020..U+007E and had no
+        // glyph anywhere near U+12000. Nothing in a range list can
+        // show that, and every other surface - the font preview,
+        // the asset importer, the status line above - looked fine.
+        //
+        // Reading the cmap answers it in one line. When a font
+        // covers nothing the rule asks for, that is now the first
+        // thing the Inspector says, with the ranges it DOES have
+        // so the next step is obvious.
+        // ==========================================
+        private static void DrawFontCoverage(SerializedProperty entry, SerializedProperty ranges,
+                                             SerializedProperty whole, Font ruleFont)
+        {
+            if (ruleFont == null) { return; }
+
+            int[] cover = CoverageOf(ruleFont);
+
+            if (cover.Length == 0)
+            {
+                EditorGUILayout.HelpBox(
+                    "This font's character table could not be read, so \"Whole font\" has nothing "
+                    + "to go on. Ranges still work.", MessageType.Warning);
+                return;
+            }
+
+            int count = DirectFontCoverage.Count(cover);
+            string summary = DirectFontCoverage.Describe(cover);
+            string shortSummary = summary.Length > 120 ? summary.Substring(0, 120) + " …" : summary;
+
+            // Does the font actually have anything the rule asks for? Only
+            // worth checking in range mode - in whole-font mode the answer is
+            // the coverage itself.
+            if (!whole.boolValue)
+            {
+                bool ok;
+                int[] wanted = DirectFontRule.ParseRanges(ranges.stringValue, out ok);
+                bool overlaps = false;
+
+                for (int a = 0; a + 1 < wanted.Length && !overlaps; a += 2)
+                {
+                    for (int b = 0; b + 1 < cover.Length; b += 2)
+                    {
+                        if (wanted[a] <= cover[b + 1] && cover[b] <= wanted[a + 1]) { overlaps = true; break; }
+                    }
+                }
+
+                if (wanted.Length > 0 && !overlaps)
+                {
+                    EditorGUILayout.HelpBox(
+                        "This font has NO glyph in any of those ranges, so this rule can only ever "
+                        + "draw empty boxes.\n\nThe font covers " + count.ToString("N0")
+                        + " codepoints: " + shortSummary
+                        + "\n\nFonts for unusual scripts are often drawn onto ASCII slots instead of "
+                        + "the real codepoints. If this one covers 0020-007E, type Latin letters to "
+                        + "get its shapes - or switch on \"Whole font\".",
+                        MessageType.Error);
+                }
+            }
+
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("This font covers",
+                count.ToString("N0") + " codepoints  (" + (cover.Length / 2) + " ranges)");
+
+            using (new EditorGUI.DisabledScope(whole.boolValue))
+            {
+                if (GUILayout.Button("Copy to Ranges", GUILayout.Width(120f)))
+                {
+                    ranges.stringValue = summary;
+                }
+            }
+            EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.LabelField(" ", shortSummary, EditorStyles.miniLabel);
+        }
+
+        // Reading a font file is not free, and OnInspectorGUI runs several
+        // times a second. One entry is enough: the Inspector only ever shows a
+        // handful of rules, and a font that changes gets a new key.
+        private static readonly System.Collections.Generic.Dictionary<int, int[]> s_coverage
+            = new System.Collections.Generic.Dictionary<int, int[]>();
+
+        private static int[] CoverageOf(Font font)
+        {
+            int key = font.GetInstanceID();
+            int[] cached;
+            if (s_coverage.TryGetValue(key, out cached)) { return cached; }
+
+            cached = DirectFontCoverage.Ranges(DirectFontBytes.For(font));
+            s_coverage[key] = cached;
+            return cached;
         }
 
         // One rule's state, in the words somebody needs to fix it.

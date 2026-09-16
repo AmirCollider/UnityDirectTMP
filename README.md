@@ -105,8 +105,19 @@ list is open. Press **Add a script** and fill in three things:
 | | |
 |---|---|
 | **Name** | `Cuneiform` — for your own benefit. Nothing depends on it. |
-| **Ranges** | `12000-123FF, 12400-1247F` — hex, straight off the Unicode chart |
 | **Font** | `NotoSansCuneiform-Regular.ttf` |
+| **Whole font** | Tick this and the font is used for **every character it actually has**, read from the font's own table. The ranges below are then ignored. |
+| **Ranges** | `12000-123FF, 12400-1247F` — hex, straight off the Unicode chart. Only needed if you did not tick **Whole font**. |
+
+Under each rule the Inspector shows what the font **really** covers — how many
+codepoints, and which ranges — with a **Copy to Ranges** button.
+
+> **If your script shows empty boxes, look at that line first.** Fonts for
+> unusual scripts are very often drawn onto ASCII slots rather than the real
+> codepoints: the glyphs are at `a`, `b`, `c`, and `U+12000` is not in the file
+> at all. Such a font renders nothing for correctly encoded text, in any tool.
+> If the Inspector says it covers `0020-007E`, that is what happened — type
+> Latin letters to get its shapes, or tick **Whole font**.
 
 Ranges accept the forms people actually type: `12000-123FF`, `U+12000-U+123FF`,
 `0x12000-0x12FFF`, a single codepoint on its own, and the en dash a copy-paste
@@ -267,8 +278,19 @@ label.font = DirectTMP.LoadFromFile(path);   // یک .ttf روی دیسک، در
 | | |
 |---|---|
 | **Name** | `Cuneiform` — فقط برای خودت. هیچ‌چیزی به آن وابسته نیست. |
-| **Ranges** | `12000-123FF, 12400-1247F` — هگز، مستقیم از روی جدول یونیکد |
 | **Font** | `NotoSansCuneiform-Regular.ttf` |
+| **Whole font** | تیک بزن تا فونت برای **هر کاراکتری که واقعاً دارد** استفاده شود — از روی جدول خودِ فونت خوانده می‌شود. آن وقت Ranges اصلاً خوانده نمی‌شود. |
+| **Ranges** | `12000-123FF, 12400-1247F` — هگز، مستقیم از جدول یونیکد. فقط وقتی لازم است که **Whole font** را نزده باشی. |
+
+زیر هر قانون، اینسپکتور نشان می‌دهد فونت **واقعاً** چه چیزی را پوشش می‌دهد —
+چند کدپوینت و کدام بازه‌ها — با یک دکمه‌ی **Copy to Ranges**.
+
+> **اگر خطت مربع خالی نشان می‌دهد، اول همین خط را نگاه کن.** فونت‌های خط‌های
+> غیرمعمول خیلی وقت‌ها روی جایگاه‌های ASCII کشیده شده‌اند، نه روی کدپوینت‌های
+> واقعی: گلیف‌ها روی `a` و `b` و `c` هستند و `U+12000` اصلاً داخل فایل نیست.
+> چنین فونتی برای متنِ درست‌کدشده در **هیچ** ابزاری چیزی نشان نمی‌دهد. اگر
+> اینسپکتور گفت پوششش `0020-007E` است، ماجرا همین است — یا حروف لاتین تایپ کن
+> تا شکل‌هایش بیاید، یا **Whole font** را بزن.
 
 بازه‌ها همان شکل‌هایی را که آدم واقعاً تایپ می‌کند قبول می‌کنند:
 `12000-123FF`، `U+12000-U+123FF`، `0x12000-0x12FFF`، یک کدپوینت تنها، و همان
@@ -422,8 +444,19 @@ label.font = DirectTMP.LoadFromFile(path);   // ランタイムに .ttf を直�
 | | |
 |---|---|
 | **Name** | `Cuneiform` — ご自身のための名前です。動作には影響しません。 |
-| **Ranges** | `12000-123FF, 12400-1247F` — Unicode チャートの 16 進表記そのまま |
 | **Font** | `NotoSansCuneiform-Regular.ttf` |
+| **Whole font** | 有効にすると、そのフォントが**実際に持っているすべての文字**に使われます。フォント自身の表から読み取るため、下の Ranges は無視されます。 |
+| **Ranges** | `12000-123FF, 12400-1247F` — Unicode チャートの 16 進表記。**Whole font** を使わない場合のみ必要です。 |
+
+各ルールの下に、そのフォントが**実際に**カバーする範囲（コードポイント数と範囲）が
+表示され、**Copy to Ranges** ボタンで Ranges 欄に取り込めます。
+
+> **文字が □ になる場合は、まずその行を見てください。** 珍しい文字体系のフォントは、
+> 本来のコードポイントではなく ASCII の位置にグリフが描かれていることが非常に多く、
+> その場合 `a`・`b`・`c` に字形があり、`U+12000` はファイルに存在しません。こうした
+> フォントは、正しく符号化されたテキストに対してどのツールでも何も表示しません。
+> インスペクターが `0020-007E` と表示していればそれが原因です。ラテン文字を入力するか、
+> **Whole font** を有効にしてください。
 
 範囲は実際に入力される形式をそのまま受け付けます。`12000-123FF`、
 `U+12000-U+123FF`、`0x12000-0x12FFF`、単一のコードポイント、そして Unicode の PDF
