@@ -34,12 +34,7 @@
   ・
   <a href="https://amircollider.com/ja/unity-directtmp"><b>🌐 プラグインページ</b></a>
   ・
-  <a href="https://amircollider.com/en/videos"><b>🎬 Video tutorials · آموزش ویدیویی · 動画</b></a>
-</p>
-
-<p align="center" dir="rtl">
-  <b>افزونه‌ی رایگان و متن‌باز فارسی‌نویسی یونیتی</b> — حل مشکل حروف جدا و برعکسِ فارسی و عربی در TextMeshPro،
-  بدون فارسی‌ساز و بدون Font Asset Creator.
+  <a href="https://amircollider.com/en/videos"><b>🎬 Video tutorials</b></a>
 </p>
 
 ---
