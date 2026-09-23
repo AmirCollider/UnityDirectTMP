@@ -33,6 +33,13 @@
   <a href="https://amircollider.com/unity-directtmp"><b>🌐 صفحهٔ افزونه</b></a>
   ・
   <a href="https://amircollider.com/ja/unity-directtmp"><b>🌐 プラグインページ</b></a>
+  ・
+  <a href="https://amircollider.com/en/videos"><b>🎬 Video tutorials · آموزش ویدیویی · 動画</b></a>
+</p>
+
+<p align="center" dir="rtl">
+  <b>افزونه‌ی رایگان و متن‌باز فارسی‌نویسی یونیتی</b> — حل مشکل حروف جدا و برعکسِ فارسی و عربی در TextMeshPro،
+  بدون فارسی‌ساز و بدون Font Asset Creator.
 </p>
 
 ---
@@ -213,6 +220,11 @@ Unity **2021.3+** and **TextMeshPro** (bundled with Unity). Nothing else.
 <div dir="rtl">
 
 ## 🇮🇷 فارسی
+
+**Unity DirectTMP یک افزونه‌ی رایگان و متن‌باز (MIT) برای فارسی‌نویسی در یونیتی است.**
+اگر متن فارسی در یونیتی و TextMeshPro **جدا جدا و برعکس** نشان داده می‌شود، یا به‌جای حروف
+مربع خالی (`□`) می‌بینی، همین پکیج حلش می‌کند — بدون فارسی‌ساز جداگانه، بدون RTLTMPro و
+بدون دست‌کاری رشته‌ها. [صفحه‌ی افزونه و ویدیوهای آموزشی فارسی](https://amircollider.com/unity-directtmp)
 
 **بدون Font Asset Creator، بدون انتخاب کاراکتر، بدون `□□□`.**
 فایل فونت را روی لیبل بگذارید و همان لیبل مستقیماً از همان فایل کشیده می‌شود —
